@@ -19,10 +19,10 @@ pub enum Primitive {
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum PrimType {
     Null,
+    Bool,
     Int,
     Float,
     Char,
-    Bool,
 
     Type,
     List,
@@ -30,6 +30,91 @@ pub enum PrimType {
     Class,
 }
 
+impl PrimType {
+    fn cast(self, obj: Object) -> Object {
+        match self {
+            Self::Null => Object::make_null(),
+            Self::Bool => Self::bool_cast(obj),
+            Self::Int => Self::int_cast(obj),
+            Self::Float => Self::float_cast(obj),
+            Self::Char => Self::char_cast(obj),
+            
+            Self::Type => Self::type_cast(obj),
+            Self::List => Self::list_cast(obj),
+            Self::Function => Self::func_cast(obj),
+            Self::Class => Self::class_cast(obj),
+        }
+    }
+    fn bool_cast(obj: Object) -> Object {
+        type P = Primitive;
+        let b = match obj.primitive {
+            P::Null | P::Type(_) => return Object::make_null(),
+            other => other.is_truthy(),
+        };
+        Object::make_bool(b)
+    }
+    fn int_cast(obj: Object) -> Object {
+        type P = Primitive;
+        let i = match obj.primitive {
+            P::Null | P::Type(_) => return Object::make_null(),
+            P::Bool(b) => b as i64,
+            P::Int(i) => i,
+            P::Float(f) => f as i64,
+            P::Char(c) => c as i64,
+            P::List(List { ltype: _, ref elems }) => elems.len() as i64,
+            P::Function(f) => match f {
+                Function::RustFn(RustFunc { num_args, .. }) => num_args.unwrap_or(-1),
+                Function::LangFn(ref pnames, _) => pnames.len() as i64,
+            },
+            P::Class(ref mems) => mems.len() as i64,
+
+        };
+        Object::make_int(i)
+    }
+    fn float_cast(obj: Object) -> Object {
+        type P = Primitive;
+        let f = match obj.primitive {
+            P::Null | P::Char(_) | P::Type(_) | P::List(_) | P::Function(_) | P::Class(_) => return Object::make_null(),
+            P::Bool(b) => if b { 1.0 } else { 0.0 },
+            P::Int(i) => i as f64,
+            P::Float(f) => f,
+        };
+        Object::make_float(f)
+    }
+    fn char_cast(obj: Object) -> Object {
+        type P = Primitive;
+        let c = match obj.primitive {
+            P::Null | P::Float(_) | P::Class(_) | P::Function(_) | P::Type(_) | P::List(_) => return Object::make_null(),
+            P::Bool(b) => if b { 'T' } else { 'F' },
+            P::Int(i) => match char::from_u32(i as u32) {
+                Some(c) => c,
+                None => return Object::make_null(),
+            },
+            P::Char(c) => c,
+        };
+        Object::make_char(c)
+    }
+    fn type_cast(obj: Object) -> Object {
+        Object::make_type(obj.get_type())
+    }
+    fn list_cast(obj: Object) -> Object {
+        Object::make_list(vec![obj.clone()])
+    }
+    fn func_cast(obj: Object) -> Object {
+        type P = Primitive;
+        match obj.primitive {
+            P::Function(f) => Object::make_func_dir(f),
+            _ => return Object::make_null(),
+        }
+    }
+    fn class_cast(obj: Object) -> Object {
+        type P = Primitive;
+        match obj.primitive {
+            P::Class(_) => unimplemented!(),
+            _ => return Object::make_null(),
+        }
+    }
+}
 #[derive(Debug, PartialEq, Clone)]
 pub struct List {
     pub ltype: Option<PrimType>,
@@ -91,6 +176,12 @@ impl Object {
             vtable: &vtable::function_vtable::VTABLE,
         }
     }
+    pub fn make_func_dir(func: Function) -> Self {
+        Self {
+            primitive: Primitive::Function(func),
+            vtable: &vtable::function_vtable::VTABLE,
+        }
+    }
     fn make_rust_func(func: RustFunc) -> Self {
         Self {
             primitive: Primitive::Function(Function::RustFn(func)),
@@ -121,6 +212,12 @@ impl Object {
                 elems: vec,
             }),
             vtable: &vtable::list_vtable::VTABLE,
+        }
+    }
+    pub fn make_type(t: PrimType) -> Self {
+        Self {
+            primitive: Primitive::Type(t),
+            vtable: &vtable::type_vtable::VTABLE,
         }
     }
     pub fn make_expr(self) -> Expression {
@@ -191,7 +288,7 @@ impl Primitive {
             Self::Null => false,
             Self::Int(val) => *val != 0,
             Self::Float(val) => *val != 0.0,
-            Self::Char(_) => true,
+            Self::Char(val) => *val != '\0',
             Self::Bool(val) => *val,
 
             Self::Type(_) => true,
@@ -227,7 +324,17 @@ pub struct BinOpExpr {
     pub right: Box<Expression>,
 }
 
-pub type RustFunc = fn(Vec<Object>) -> Object;
+// pub type RustFunc = fn(Vec<Object>) -> Object;
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RustFunc {
+    num_args: Option<i64>,
+    fn_ptr: fn(Vec<Object>) -> Object,
+}
+impl RustFunc {
+    pub const fn new(num_args: Option<i64>, fn_ptr: fn(Vec<Object>) -> Object) -> Self {
+        Self { num_args, fn_ptr }
+    }
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Expression {
@@ -256,6 +363,16 @@ pub struct VarData {
     pub is_init: bool,
     pub value: Box<Object>,
 }
+
+impl VarData {
+    fn make_constant(value: Object) -> Self {
+        Self {
+            is_const: true,
+            is_init: true,
+            value: Box::new(value),
+        }
+    }
+}
 #[derive(Debug)]
 pub struct Scope {
     pub vars: HashMap<String, VarData>,
@@ -266,36 +383,35 @@ impl Default for Scope {
         let mut initial_vars = HashMap::new();
         initial_vars.insert(
             String::from("true"),
-            VarData {
-                is_const: true,
-                is_init: true,
-                value: Box::new(Object::make_bool(true)),
-            },
+            VarData::make_constant(Object::make_bool(true)),
         );
         initial_vars.insert(
             String::from("false"),
-            VarData {
-                is_const: true,
-                is_init: true,
-                value: Box::new(Object::make_bool(false)),
-            },
+            VarData::make_constant(Object::make_bool(false)),
         );
         initial_vars.insert(
             String::from("null"),
-            VarData {
-                is_const: true,
-                is_init: true,
-                value: Box::new(Object::make_null()),
-            },
+            VarData::make_constant(Object::make_null()),
         );
+        type PT = PrimType;
+        let types = [
+            ("Null", PT::Null),
+            ("Bool", PT::Bool),
+            ("Int", PT::Int),
+            ("Float", PT::Float),
+            ("Char", PT::Char),
+            ("List", PT::List),
+            ("Function", PT::Function),
+            ("Instance", PT::Class),
+            ("Type", PT::Type),
+        ];
+        for (name, typ) in types {
+            initial_vars.insert(name.to_string(), VarData::make_constant(Object::make_type(typ)));
+        }
         for (name, func) in crate::stdlib::FUNCS {
             initial_vars.insert(
                 name.to_string(),
-                VarData {
-                    is_const: true,
-                    is_init: true,
-                    value: Box::new(Object::make_rust_func(*func)),
-                },
+                VarData::make_constant(Object::make_rust_func(*func)),
             );
         }
 
@@ -376,13 +492,22 @@ impl Expression {
             Self::Call(vec) => {
                 assert!(!vec.is_empty());
                 let func = vec[0].clone().evaluate(scope);
-                let Primitive::Function(func) = func.primitive else {
-                    panic!("Can not call a non-function");
-                };
+                // let Primitive::Function(func) = func.primitive else {
+                    // panic!("Can not call a non-function");
+                // };
                 let args = &vec[1..];
 
-                match func {
-                    Function::LangFn(fn_params, fn_body) => {
+                type P = Primitive;
+                match func.primitive {
+                    P::Type(ty) => {
+                        if args.len() != 1 {
+                            panic!("Can not cast more than one value at a time");
+                        }
+                        let mut vec = vec;
+                        let arg = vec.swap_remove(1);
+                        ty.cast(arg.evaluate(scope))
+                    }
+                    P::Function(Function::LangFn(fn_params, fn_body)) => {
                         // assert!(args.len() == fn_params.len());
                         if args.len() != fn_params.len() {
                             panic!("Function called with incorrect number of arguments");
@@ -399,10 +524,14 @@ impl Expression {
                         }
                         fn_body.evaluate(&mut fn_scope)
                     }
-                    Function::RustFn(fn_ptr) => {
+                    P::Function(Function::RustFn(RustFunc { num_args, fn_ptr })) => {
+                        if num_args.is_some() && args.len() != num_args.unwrap() as usize {
+                            panic!("Function called with {} but takes {} amount of arguments", args.len(), num_args.unwrap());
+                        }
                         let args = vec.into_iter().skip(1).map(|arg| arg.evaluate(scope));
                         fn_ptr(args.collect())
                     }
+                    _ => panic!("Can not call non-function: {func:?}"),
                 }
             }
             Self::Return(_) => todo!(),

@@ -115,9 +115,6 @@ impl Token {
             metadata: tmeta,
         }
     }
-    fn is_semi(&self) -> bool {
-        matches!(self.info, TokenType::Operator(gen::Operator::Semicolon))
-    }
 }
 
 impl PartialEq for Token {
@@ -213,7 +210,7 @@ impl<'a> Lexer<'a> {
         
         while self.can_peek() {
             let n = self.consume();
-            if n.is_whitespace() || Self::op_first_chars().contains(&n) {
+            if n.is_whitespace() || (Self::op_first_chars().contains(&n) && n != '.') {
                 self.unconsume();
                 break;
             } else if n == '.' {

@@ -6,7 +6,13 @@ macro_rules! reg_func {
     };
 }
 
-pub const FUNCS: &[(&str, RustFunc)] = reg_func![print, dbg_print, nop, exit, import];
+pub const FUNCS: &[(&str, RustFunc)] = &[
+    ("print", RustFunc::new(None, print)),
+    ("dbg_print", RustFunc::new(None, dbg_print)),
+    ("nop", RustFunc::new(None, nop)),
+    ("exit", RustFunc::new(None, exit)),
+    ("import", RustFunc::new(Some(1), import)),
+];
 
 fn exit(args: Vec<Object>) -> Object {
     use crate::ast::Primitive;
@@ -60,11 +66,7 @@ fn import(args: Vec<Object>) -> Object {
     use std::io::ErrorKind;
 
     let [fp] = &args[..] else {
-        panic!(
-            "import takes exactly 1 argument, not {} ({:?})",
-            args.len(),
-            args
-        );
+        unreachable!();
     };
     if !is_string(&fp.primitive) {
         panic!("import must take a string");
@@ -100,6 +102,10 @@ fn import(args: Vec<Object>) -> Object {
         Err(e) => panic!("Import error: {e}"),
     }
 }
+fn get_type(args: Vec<Object>) -> Object {
+    Object::make_type(args.first().cloned().unwrap_or_default().get_type())
+}
+
 
 fn is_string(p: &Primitive) -> bool {
     match p {
