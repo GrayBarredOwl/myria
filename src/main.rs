@@ -9,76 +9,19 @@ use std::{env, fs, io::Write};
 
 use crate::{
     ast::Primitive,
-    lex::{Meta, Token, TokenType},
 };
 
 fn main() {
     let mut args = env::args();
     let _this_path = args.next().expect("Always contains it's own file path");
-    let Some(file) = args.next() else {
-        repl();
-        return;
-    };
+    let Some(file) = args.next() else { repl(); return; };
     let program = fs::read_to_string(&file);
     let Ok(program) = program else {
         panic!("File({}) could not be read: {}", file, program.unwrap_err());
     };
     dbg!("{}\n", &program);
 
-    // let tokens = lex::tokenize(&program);
-
-    let tokens = vec![
-        Token {
-            info: TokenType::Keyword(gen::Keyword::Let),
-            metadata: Meta { line_number: 1 },
-        },
-        Token {
-            info: TokenType::Id(String::from("x")),
-            metadata: Meta { line_number: 1 },
-        },
-        Token {
-            info: TokenType::Operator(gen::Operator::Assign),
-            metadata: Meta { line_number: 1 },
-        },
-        Token {
-            info: TokenType::Id(String::from("import")),
-            metadata: Meta { line_number: 1 },
-        },
-        Token {
-            info: TokenType::Operator(gen::Operator::LParen),
-            metadata: Meta { line_number: 1 },
-        },
-        Token {
-            info: TokenType::Str(String::from("test.mylang")),
-            metadata: Meta { line_number: 1 },
-        },
-        Token {
-            info: TokenType::Operator(gen::Operator::RParen),
-            metadata: Meta { line_number: 1 },
-        },
-        Token {
-            info: TokenType::Operator(gen::Operator::Semicolon),
-            metadata: Meta { line_number: 1 },
-        },
-
-        Token {
-            info: TokenType::Id(String::from("print")),
-            metadata: Meta { line_number: 2 },
-        },
-        Token {
-            info: TokenType::Operator(gen::Operator::LParen),
-            metadata: Meta { line_number: 2 },
-        },
-        Token {
-            info: TokenType::Id(String::from("x")),
-            metadata: Meta { line_number: 2 },
-        },
-        Token {
-            info: TokenType::Operator(gen::Operator::RParen),
-            metadata: Meta { line_number: 2 },
-        },
-    ];
-
+    let tokens = lex::Lexer::new(&program).tokenize();
     dbg!(&tokens);
 
     let parser = parse::Parser::new(&tokens);
@@ -90,9 +33,7 @@ fn main() {
 }
 
 fn repl() {
-    use crate::ast::Scope;
-    use crate::lex;
-    use crate::parse::Parser;
+    use crate::{ast::Scope, lex, parse::Parser};
     let mut scope = Scope::default();
 
     loop {
@@ -119,7 +60,8 @@ fn repl() {
             break;
         }
 
-        let toks = lex::tokenize(resp);
+        let lexer = lex::Lexer::new(&resp);
+        let toks = lexer.tokenize();
         dbg!(&toks);
         let parser = Parser::new(&toks);
         let expr = parser.parse();

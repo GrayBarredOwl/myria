@@ -91,7 +91,7 @@ fn import(args: Vec<Object>) -> Object {
         Err(e) => e,
     };
     match err.kind() {
-        ErrorKind::NotFound => fp.push_str(".mylang"),
+        ErrorKind::NotFound => fp.push_str(gen::EXTENSION),
         _ => panic!("Import error: {err}"),
     }
 

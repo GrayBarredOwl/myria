@@ -1,5 +1,7 @@
 use std::{collections::HashMap, sync::OnceLock};
 
+pub const EXTENSION: &str = ".mylang";
+
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Keyword {
     Let,
@@ -121,11 +123,11 @@ pub fn run_file(fp: &str) -> io::Result<Object> {
 }
 pub fn run_file_with(fp: &str, scope: &mut Scope) -> io::Result<Object> {
     use std::fs;
+    use crate::{lex::Lexer, parse::Parser};
 
     let program = fs::read_to_string(fp)?;
-    let tokens = crate::lex::tokenize(&program);
+    let tokens = Lexer::new(&program).tokenize();
 
-    let parser = crate::parse::Parser::new(&tokens);
-    let ex = parser.parse();
-    Ok(ex.evaluate(scope))
+    let expr = Parser::new(&tokens).parse();
+    Ok(expr.evaluate(scope))
 }

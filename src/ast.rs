@@ -150,10 +150,10 @@ impl PartialEq for Object {
     }
 }
 
-impl ToString for Object {
-    fn to_string(&self) -> String {
+impl std::fmt::Display for Object {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         type P = Primitive;
-        match self.primitive {
+        write!(f, "{}", match self.primitive {
             P::Int(v) => v.to_string(),
             P::Float(v) => v.to_string(),
             P::Bool(v) => v.to_string(),
@@ -161,6 +161,16 @@ impl ToString for Object {
             P::Class(_) => String::from("Class"),
             P::Type(v) => format!("{v:?}"),
             P::Function(_) => String::from("Function"),
+            P::Null => String::from("Null"),
+            P::List(List {
+                ltype: Some(PrimType::Char),
+                ref elems
+            }) => elems
+                .iter()
+                .map(|c| match c.primitive {
+                    Primitive::Char(c) => c,
+                    _ => unreachable!(),
+                }).collect(),
             P::List(List {
                 ltype: _,
                 ref elems,
@@ -172,8 +182,7 @@ impl ToString for Object {
                     .reduce(|a, o| format!("{a}, {o}"))
                     .unwrap_or_default()
             ),
-            P::Null => String::from("Null"),
-        }
+        })
     }
 }
 impl Primitive {
@@ -374,7 +383,10 @@ impl Expression {
 
                 match func {
                     Function::LangFn(fn_params, fn_body) => {
-                        assert!(args.len() == fn_params.len());
+                        // assert!(args.len() == fn_params.len());
+                        if args.len() != fn_params.len() {
+                            panic!("Function called with incorrect number of arguments");
+                        }
 
                         let mut fn_scope = Scope::default();
                         for (name, val) in fn_params.into_iter().zip(vec.into_iter().skip(1)) {

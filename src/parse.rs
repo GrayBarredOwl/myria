@@ -396,6 +396,9 @@ impl<'a> Parser<'a> {
         // assert!(self.peek().info == TT::Keyword(KW::Call));
         // let _call = self.consume();
         assert!(matches!(self.peek().info, TT::Id(_)));
+        if !matches!(self.peek().info, TT::Id(_)) {
+            panic!("A function call can only be performed on a variable")
+        }
         let TT::Id(func) = self.peek().info.clone() else {
             let pk = self.peek();
             panic!(
@@ -463,17 +466,19 @@ impl<'a> Parser<'a> {
 Improvements:
 
 Parenthesis,
-Order of operations,
+Order of operations, 
 Better lexer (having adjacent tokens w/o whitespace, strings, characters, block comments),
 Nested commas (like function calls in function calls, or function calls in list literals)
+Having the left of a binary expression be compound ( [ 1 ] != [ 2 ], inline function calls ) 
 Return, break, continue keyworda,
 Classes,
 Variable scope,
 Call stack,
 Type casting
 List length / cast it to int ?
-Improve import
 Modulus function
 Rust and/or C API
 Exceptions & error handling
+Variadic function syntax
+Better error messages
 */

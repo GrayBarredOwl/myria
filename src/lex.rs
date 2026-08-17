@@ -1,3 +1,5 @@
+use std::sync::OnceLock;
+
 use crate::ast::{Expression, Object};
 use crate::gen::{self, keywords, operators, Operator};
 
@@ -16,7 +18,7 @@ impl TokenType {
     pub fn is_value(&self) -> bool {
         matches!(
             self,
-            Self::Int(_) | Self::Float(_) | Self::Str(_) | Self::Id(_)
+            Self::Int(_) | Self::Float(_) | Self::Str(_) | Self::Char(_) | Self::Id(_)
         )
     }
     pub fn is_unary_op(&self) -> bool {
@@ -124,196 +126,189 @@ impl PartialEq for Token {
     }
 }
 
-pub fn tokenize(program: &str) -> Vec<Token> {
-    let mut vec = vec![];
-    for (line_number, line) in program.lines().enumerate() {
-        let line_number = line_number + 1; // enumeratate starts at 0, not 1
-
-        let line = line.split("//").next().expect("Split len > 0"); // Remove everything after //
-        let toks = line.split_whitespace().map(|s| {
-            let t = resolve_token(s, line_number);
-            if let Err(e) = t {
-                panic!("{e}");
-            }
-            t.unwrap()
-        });
-        vec.extend(toks);
-        if !vec.is_empty() && !vec.last().unwrap().is_semi() {
-            vec.push(Token::new(
-                TokenType::Operator(gen::Operator::Semicolon),
-                Meta { line_number },
-            ));
+pub struct Lexer<'a> {
+    current: usize,
+    cur_line: usize,
+    string: &'a str
+}
+impl<'a> Lexer<'a> {
+    pub fn new(string: &'a str) -> Self {
+        Self {
+            current: 0,
+            cur_line: 1,
+            string: string,
         }
     }
-    remove_initial_and_trailing_semis(&mut vec);
-    vec
-}
-
-pub fn tokenize2(program: &str) -> Vec<Token> {
-    let mut vec = vec![];
-    let mut i = 0;
-    let mut cur_line = 1;
-    while i < program.len() {
-        let c = program.chars().nth(i).unwrap();
-        if c.is_whitespace() {
-            cur_line += (c == '\n') as usize;
-            i += 1;
-            continue;
-        } else if let Some(op) = operators().get(&program[i..=i]) {
-            vec.push(Token::new(
-                TokenType::Operator(*op),
-                Meta {
-                    line_number: cur_line,
-                },
-            ));
-        } else if c.is_numeric() {
-            let start = i;
-            while program.chars().nth(i).unwrap().is_numeric() {
-                i += 1;
-            }
-            let next = program.chars().nth(i).unwrap();
-            if next.is_whitespace()
-                || operators()
-                    .keys()
-                    .any(|k| k.chars().next().unwrap() == next)
-            {
-                vec.push(Token::new(
-                    TokenType::Int(program[start..i].parse().unwrap()),
-                    Meta {
-                        line_number: cur_line,
-                    },
-                ));
-            } else if next == '.' {
-                while program.chars().nth(i).unwrap().is_numeric() {
-                    i += 1;
+    pub fn tokenize(mut self) -> Vec<Token> {
+        let mut vec = vec![];
+        
+        while self.can_peek() {
+            let c = self.peek();
+            
+            if c.is_whitespace() {
+                if c == '\n' {
+                    vec.push(self.make_tok(TokenType::Operator(Operator::Semicolon)));
                 }
-                vec.push(Token::new(
-                    TokenType::Float(program[start..i].parse().unwrap()),
-                    Meta {
-                        line_number: cur_line,
-                    },
-                ));
+                self.resolve_whitespace();
+                continue;
+            } else if c == '#' {
+                self.resolve_comment();
+                continue;
             }
-            i -= 1;
-        } else if c.is_alphabetic() || c == '_' {
-            let start = i;
-            while program.chars().nth(i).unwrap().is_alphanumeric()
-                || program.chars().nth(i).unwrap() == '_'
-            {
-                i += 1;
-            }
-            let token = &program[start..i];
-            if keywords().contains_key(token) {
-                vec.push(Token::new(
-                    TokenType::Keyword(*keywords().get(token).unwrap()),
-                    Meta {
-                        line_number: cur_line,
-                    },
-                ));
+            let t = if c.is_numeric() {
+                self.resolve_number()
+            } else if Self::op_first_chars().contains(&c) {
+                self.resolve_op()
+            } else if c == '\'' {
+                self.resolve_char()
+            } else if c == '\"' {
+                self.resolve_string()
+            } else if c.is_alphabetic() || c == '_' {
+                self.resolve_idkw()
             } else {
-                vec.push(Token::new(
-                    TokenType::Id(token.to_string()),
-                    Meta {
-                        line_number: cur_line,
-                    },
-                ));
+                panic!("(Line {}) Unrecognized token", self.cur_line);
+            };
+            vec.push(t);
+        }
+
+        vec
+    }
+    fn can_peek(&self) -> bool {
+        self.can_peek_ahead(0)
+    }
+    fn can_peek_ahead(&self, n: usize) -> bool {
+        self.current + n < self.string.chars().count()
+    }
+    fn peek_ahead(&self, n: usize) -> char {
+        self.string.chars().nth(self.current + n).unwrap()
+    }
+    fn peek(&self) -> char {
+        self.peek_ahead(0)
+    }
+    fn consume(&mut self) -> char {
+        let c = self.peek();
+        self.current += 1;
+        c
+    }
+    fn unconsume(&mut self) {
+        assert!(self.current > 0);
+        self.current -= 1;
+    }
+    fn resolve_whitespace(&mut self) {
+        assert!(self.can_peek() && self.peek().is_whitespace());
+        let w = self.consume();
+        if w == '\n' {
+            self.cur_line += 1;
+        }
+    }
+    fn resolve_comment(&mut self) {
+        assert!(self.can_peek() && self.peek() == '#');
+        while self.can_peek() && self.consume() != '\n' { }
+        self.cur_line += 1;
+    }
+    fn resolve_number(&mut self) -> Token {
+        assert!(self.can_peek() && self.peek().is_numeric());
+        let mut num_dots = 0;
+        let start = self.current;
+        
+        while self.can_peek() {
+            let n = self.consume();
+            if n.is_whitespace() || Self::op_first_chars().contains(&n) {
+                self.unconsume();
+                break;
+            } else if n == '.' {
+                num_dots += 1;
+                if num_dots > 1 {
+                    panic!("(Line {}) Number can not contain multiple periods", self.cur_line);
+                }
+            } else if !n.is_numeric() {
+                panic!("(Line {}) Number can only contain 0-9 and period", self.cur_line);
             }
-            i -= 1;
         }
 
-        i += 1;
+        if num_dots == 0 {
+            let i = self.string[start..self.current].parse().unwrap();
+            self.make_tok(TokenType::Int(i))
+        } else {
+            let f = self.string[start..self.current].parse().unwrap();
+            self.make_tok(TokenType::Float(f))
+        }
     }
+    fn resolve_op(&mut self) -> Token {
+        assert!(self.can_peek() && Self::op_first_chars().contains(&self.peek()));
+        let start = self.current;
+        let _first = self.consume();
+        if !self.can_peek() {
+            return self.make_tok(TokenType::Operator(*operators().get(&self.string[start..]).unwrap()));
+        }
+        let second = self.consume();
+        if !matches!(second, '=' | '&' | '|') {
+            self.unconsume();
+            return self.make_tok(TokenType::Operator(*operators().get(&self.string[start..self.current]).unwrap()));
+        }
 
-    vec
-}
-pub fn tokenize3(tokens: &str) -> Vec<Token> {
-    todo!();
-}
-
-fn remove_initial_and_trailing_semis(tokens: &mut Vec<Token>) {
-    while !tokens.is_empty() && tokens.first().unwrap().is_semi() {
-        tokens.remove(0);
+        self.make_tok(TokenType::Operator(*operators().get(&self.string[start..self.current]).unwrap()))
     }
-    while !tokens.is_empty() && tokens[tokens.len() - 2].is_semi() {
-        tokens.pop();
+    fn resolve_char(&mut self) -> Token {
+        assert!(self.can_peek() && self.peek() == '\'');
+        let _open = self.consume();
+        if !self.can_peek_ahead(1) {
+            panic!("(Line {})Unclosed single quote!", self.cur_line);
+        }
+        let c = self.consume();
+        let _close = self.consume();
+        self.make_tok(TokenType::Char(c))
     }
-}
-
-fn resolve_token(token: &str, line_number: usize) -> Result<Token, String> {
-    if token.chars().count() == 0 {
-        return Err(String::from("Token must contain > 0 characters"));
-    }
-    type TT = TokenType;
-
-    let meta = Meta { line_number };
-
-    if let Some(op) = gen::operators().get(&token) {
-        Ok(Token::new(TT::Operator(*op), meta))
-    } else if let Some(kw) = gen::keywords().get(&token) {
-        Ok(Token::new(TT::Keyword(*kw), meta))
-    } else if token.chars().next().expect("Checked len > 0").is_numeric() {
-        resolve_number(token, line_number)
-    } else {
-        // Default is an identifier
-        resolve_id(token, line_number)
-        // Err(format!("Unrecognized token: '{token}' on line {line_number}"))
-    }
-}
-
-fn resolve_number(num: &str, line_number: usize) -> Result<Token, String> {
-    if num.chars().count() == 0 {
-        return Err(format!("(line: {line_number}) Number can not be empty"));
-    }
-
-    let meta = Meta { line_number };
-    let mut is_int = true;
-
-    for c in num.chars() {
-        if c == '.' {
-            if !is_int {
-                return Err(format!(
-                    "(line: {line_number}) Number can not contain multiple dots"
-                ));
+    fn resolve_string(&mut self) -> Token {
+        assert!(self.can_peek() && self.peek() == '\"');
+        let _open = self.consume();
+        let start = self.current;
+        while self.can_peek() {
+            let c = self.consume();
+            if c == '\"' {
+                break;
+            } else if c == '\n' {
+                panic!("(Line {}) Unclosed string", self.cur_line);
             }
-            is_int = false;
-        } else if !c.is_numeric() {
-            return Err(format!("(line: {line_number}) Not a number: {num}"));
         }
+        self.unconsume();
+        if self.peek() != '\"' {
+            panic!("(Line {}) Unclosed string", self.cur_line);
+        }
+        let s = self.string[start..(self.current)].to_string();
+        self.consume();
+        self.make_tok(TokenType::Str(s))
     }
-
-    let tt = match is_int {
-        true => TokenType::Int(num.parse::<i64>().expect("Checked it's valid")),
-        false => TokenType::Float(num.parse::<f64>().expect("Checked it's valid")),
-    };
-
-    Ok(Token::new(tt, meta))
-}
-
-fn resolve_id(id: &str, line_number: usize) -> Result<Token, String> {
-    if id.chars().count() == 0 {
-        return Err(String::from("Identifer can not be empty"));
-    }
-
-    let meta = Meta { line_number };
-
-    let mut it = id.chars();
-    let mut c = it.next();
-
-    let ch = c.expect("len > 0");
-    if !ch.is_alphabetic() || ch == '_' {
-        return Err(format!("(line: {line_number}) Invalid identifier: {id} <- must start with alphabetical character or underscore"));
-    }
-
-    c = it.next();
-    while c.is_some() {
-        let ch = c.expect("Checked .is_some()");
-
-        if !(ch.is_alphanumeric() || ch == '_') {
-            return Err(format!("(line: {line_number}) Invalid identifier: {id} <- can only contain alphanumeric characters and underscores"));
+    fn resolve_idkw(&mut self) -> Token {
+        assert!(self.can_peek() && (self.peek().is_alphabetic() || self.peek() == '_'));
+        let start = self.current;
+        self.consume();
+        while self.can_peek() {
+            let c = self.consume();
+            if c.is_alphanumeric() || c == '_' {
+            } else {
+                self.unconsume();
+                break;
+            }
+        }
+        let id = &self.string[start..self.current];
+        if let Some(kw) = keywords().get(id) {
+            self.make_tok(TokenType::Keyword(*kw))
+        } else {
+            self.make_tok(TokenType::Id(id.into()))
         }
 
-        c = it.next();
     }
-
-    Ok(Token::new(TokenType::Id(id.to_string()), meta))
+    fn make_tok(&self, tt: TokenType) -> Token {
+        Token::new(tt, Meta { line_number: self.cur_line })
+    }
+    fn op_first_chars() -> &'static Vec<char> {
+        static VEC: OnceLock<Vec<char>> = OnceLock::new();
+        VEC.get_or_init(|| {
+            operators()
+                .keys()
+                .map(|k| k.chars().next().unwrap()).collect()
+        })
+    }
 }
+
