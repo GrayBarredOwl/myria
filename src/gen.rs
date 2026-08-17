@@ -1,0 +1,114 @@
+use std::{collections::HashMap, sync::OnceLock};
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum Keyword {
+    Let,
+    Var,
+    Func,
+    Class,
+
+    If,
+    Elif,
+    Else,
+    Loop,
+    Call,
+    Return,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum Operator {
+    Plus,
+    Minus,
+    Star,
+    Slash,
+
+    Assign,
+    PlusEq,
+    MinusEq,
+    StarEq,
+    SlashEq,
+
+    Equals,
+    NEqual,
+    Gr,
+    Lt,
+    GrEq,
+    LtEq,
+
+    And,
+    Or,
+    Not,
+
+    Dot,
+    Comma,
+    Semicolon,
+    LParen,
+    RParen,
+    LCurly,
+    RCurly,
+    LBracket,
+    RBracket,
+}
+
+pub fn keywords() -> &'static HashMap<&'static str, Keyword> {
+    static KEYWORDS: OnceLock<HashMap<&str, Keyword>> = OnceLock::new();
+
+    KEYWORDS.get_or_init(|| {
+        let mut kw = HashMap::new();
+
+        kw.insert("let", Keyword::Let);
+        kw.insert("var", Keyword::Var);
+        kw.insert("func", Keyword::Func);
+        kw.insert("class", Keyword::Class);
+
+        kw.insert("if", Keyword::If);
+        kw.insert("elif", Keyword::Elif);
+        kw.insert("else", Keyword::Else);
+        kw.insert("loop", Keyword::Loop);
+        kw.insert("call", Keyword::Call);
+        kw.insert("return", Keyword::Return);
+
+        kw
+    })
+}
+
+pub fn operators() -> &'static HashMap<&'static str, Operator> {
+    static OPERATORS: OnceLock<HashMap<&str, Operator>> = OnceLock::new();
+    OPERATORS.get_or_init(|| {
+        let mut op = HashMap::new();
+
+        op.insert("+", Operator::Plus);
+        op.insert("-", Operator::Minus);
+        op.insert("*", Operator::Star);
+        op.insert("/", Operator::Slash);
+
+        op.insert("=", Operator::Assign);
+        op.insert("+=", Operator::PlusEq);
+        op.insert("-=", Operator::MinusEq);
+        op.insert("*=", Operator::StarEq);
+        op.insert("/=", Operator::SlashEq);
+
+        op.insert("==", Operator::Equals);
+        op.insert("!=", Operator::NEqual);
+        op.insert(">", Operator::Gr);
+        op.insert("<", Operator::Lt);
+        op.insert(">=", Operator::GrEq);
+        op.insert("<=", Operator::LtEq);
+
+        op.insert("&", Operator::And);
+        op.insert("|", Operator::Or);
+        op.insert("!", Operator::Not);
+
+        op.insert(".", Operator::Dot);
+        op.insert(",", Operator::Comma);
+        op.insert(";", Operator::Semicolon);
+        op.insert("(", Operator::LParen);
+        op.insert(")", Operator::RParen);
+        op.insert("{", Operator::LCurly);
+        op.insert("}", Operator::RCurly);
+        op.insert("[", Operator::LBracket);
+        op.insert("]", Operator::RBracket);
+
+        op
+    })
+}
