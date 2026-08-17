@@ -232,8 +232,6 @@ pub fn tokenize2(program: &str) -> Vec<Token> {
 }
 pub fn tokenize3(tokens: &str) -> Vec<Token> {
     let vec = vec![];
-    
-    
 
     vec
 }

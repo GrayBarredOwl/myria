@@ -324,7 +324,7 @@ pub mod list_vtable {
         let x = get_prim!(x, List);
         let y = get_prim!(y, List);
         wrap_prim(Primitive::Bool(x == y))
-    } 
+    }
 }
 
 pub mod function_vtable {

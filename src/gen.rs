@@ -112,3 +112,20 @@ pub fn operators() -> &'static HashMap<&'static str, Operator> {
         op
     })
 }
+
+use crate::ast::{Object, Scope};
+use std::io;
+
+pub fn run_file(fp: &str) -> io::Result<Object> {
+    run_file_with(fp, &mut Scope::default())
+}
+pub fn run_file_with(fp: &str, scope: &mut Scope) -> io::Result<Object> {
+    use std::fs;
+
+    let program = fs::read_to_string(fp)?;
+    let tokens = crate::lex::tokenize(&program);
+
+    let parser = crate::parse::Parser::new(&tokens);
+    let ex = parser.parse();
+    Ok(ex.evaluate(scope))
+}

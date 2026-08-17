@@ -74,7 +74,7 @@ impl<'a> Parser<'a> {
             if !self.can_peek_ahead(1) {
                 self.consume();
                 cur_expr.box_push(next_token.to_value().unwrap());
-            } if self.peek_ahead(1).info.is_binary_op() {
+            } else if self.peek_ahead(1).info.is_binary_op() {
                 cur_expr.box_push(self.parse_binop());
             } else if self.peek_ahead(1).info == TT::Operator(Operator::LParen) {
                 cur_expr.box_push(self.parse_fn_call());
@@ -97,7 +97,7 @@ impl<'a> Parser<'a> {
         self.current + n < self.tokens.len()
     }
     fn can_peek(&self) -> bool {
-        self.can_peek_ahead(0)
+        self.current < self.tokens.len()
     }
     fn peek_ahead(&self, n: usize) -> &Token {
         &self.tokens[self.current + n]
@@ -158,11 +158,10 @@ impl<'a> Parser<'a> {
             .take_while(|t| t.info != TT::Operator(Operator::LCurly))
             .count();
 
-        let mut condition = extract(&self.tokens[self.current..(self.current + cond_expr_len)]);
-        add_semi(&mut condition);
+        let condition = &self.tokens[self.current..(self.current + cond_expr_len)];
         // dbg!(&condition);
 
-        let condition_parser = Parser::new(&condition);
+        let condition_parser = Parser::new(condition);
         self.advance(cond_expr_len);
 
         let body = self.parse_block();
@@ -194,9 +193,7 @@ impl<'a> Parser<'a> {
             .take_while(|t| t.info != TT::Operator(Operator::LCurly))
             .count();
 
-        let mut condition = extract(&self.tokens[self.current..(self.current + cond_expr_len)]);
-        add_semi(&mut condition);
-        // dbg!(&condition);
+        let condition = &self.tokens[self.current..(self.current + cond_expr_len)];
 
         let condition_parser = Parser::new(&condition);
         self.advance(cond_expr_len);
@@ -313,7 +310,6 @@ impl<'a> Parser<'a> {
         })
     }
 
-
     fn parse_block(&mut self) -> Expression {
         assert!(self.peek().info == TokenType::Operator(Operator::LCurly));
         self.consume();
@@ -331,11 +327,8 @@ impl<'a> Parser<'a> {
         if self.is_finished() {
             panic!("Unclosed blocK!");
         }
-        let mut body = extract(&self.tokens[block_start..(self.current - 1)]);
-        if !body.is_empty() && !body.ends_with(&[Token::default()]) {
-            body.push(Token::default()); // semicolon
-        }
-        let body_parser = Parser::new(&body);
+        let body = &self.tokens[block_start..(self.current - 1)];
+        let body_parser = Parser::new(body);
         // dbg!(&body);
         // dbg!(self);
         body_parser.parse()
@@ -438,20 +431,16 @@ impl<'a> Parser<'a> {
         let mut vec = vec![];
         while self.peek().info != TT::Operator(closing) {
             let start = self.current;
-            while self.peek().info != TT::Operator(Op::Comma)
+            while self.can_peek()
+                && self.peek().info != TT::Operator(Op::Comma)
                 && self.peek().info != TT::Operator(closing)
             {
                 self.consume();
             }
-            let mut tokens = self.tokens[start..self.current]
-                .iter()
-                .cloned()
-                .collect::<Vec<Token>>();
-            tokens.push(Token::default());
-
-            let parser = Parser::new(&tokens);
+            let tokens = &self.tokens[start..self.current];
+            let parser = Parser::new(tokens);
             vec.push(Box::new(parser.parse()));
-            
+
             if self.peek().info == TT::Operator(Op::Comma) {
                 self.consume();
             }
@@ -467,20 +456,25 @@ impl<'a> Parser<'a> {
         let TokenType::Str(ref string) = self.consume().info else {
             panic!();
         };
-        Object::make_list(string
-            .chars()
-            .map(|c| Object::make_char(c))
-            .collect()
-        ).to_expr()
+        Object::make_list(string.chars().map(|c| Object::make_char(c)).collect()).to_expr()
     }
 }
-fn extract(toks: &[Token]) -> Vec<Token> {
-    toks.iter().map(|t| t.clone()).collect()
-}
 
-fn add_semi(toks: &mut Vec<Token>) {
-    toks.push(Token {
-        info: TokenType::Operator(Operator::Semicolon),
-        metadata: crate::lex::Meta { line_number: 0 },
-    });
-}
+/*
+Improvements:
+
+Parenthesis,
+Order of operations,
+Better lexer (having adjacent tokens w/o whitespace, strings, characters, block commetns),
+Nested commas (like function calls in function calls, or function calls in list literals)
+Return, break, continue keyworda,
+Classes,
+Variable scope,
+Call stack,
+Type casting
+List length / cast it to int ?
+Improve import
+Modulus function
+Rust and/or C API
+Exceptions & error handling
+*/

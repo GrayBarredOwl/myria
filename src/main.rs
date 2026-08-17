@@ -7,7 +7,10 @@ mod vtable;
 
 use std::{env, fs, io::Write};
 
-// use crate::ast::Scope;
+use crate::{
+    ast::Primitive,
+    lex::{Meta, Token, TokenType},
+};
 
 fn main() {
     let mut args = env::args();
@@ -20,10 +23,57 @@ fn main() {
     let Ok(program) = program else {
         panic!("File({}) could not be read: {}", file, program.unwrap_err());
     };
-    // let program = include_str!("../test.mylang");
-    // dbg!("{}\n", &program);
+    dbg!("{}\n", &program);
 
-    let tokens = lex::tokenize(&program);
+    // let tokens = lex::tokenize(&program);
+
+    let tokens = vec![
+        Token {
+            info: TokenType::Id(String::from("import")),
+            metadata: Meta { line_number: 1 },
+        },
+        Token {
+            info: TokenType::Operator(gen::Operator::LParen),
+            metadata: Meta { line_number: 1 },
+        },
+        Token {
+            info: TokenType::Str(String::from("test.mylang")),
+            metadata: Meta { line_number: 1 },
+        },
+        Token {
+            info: TokenType::Operator(gen::Operator::RParen),
+            metadata: Meta { line_number: 1 },
+        },
+        Token {
+            info: TokenType::Operator(gen::Operator::Semicolon),
+            metadata: Meta { line_number: 1 },
+        },
+        Token {
+            info: TokenType::Id(String::from("print")),
+            metadata: Meta { line_number: 2 },
+        },
+        Token {
+            info: TokenType::Operator(gen::Operator::LParen),
+            metadata: Meta { line_number: 2 },
+        },
+        Token {
+            info: TokenType::Int(5),
+            metadata: Meta { line_number: 2 },
+        },
+        Token {
+            info: TokenType::Operator(gen::Operator::Equals),
+            metadata: Meta { line_number: 2 },
+        },
+        Token {
+            info: TokenType::Int(5),
+            metadata: Meta { line_number: 2 },
+        },
+        Token {
+            info: TokenType::Operator(gen::Operator::RParen),
+            metadata: Meta { line_number: 2 },
+        },
+    ];
+
     dbg!(&tokens);
 
     let parser = parse::Parser::new(&tokens);
@@ -71,7 +121,10 @@ fn repl() {
         dbg!(&expr);
         let result = expr.evaluate(&mut scope);
         // if result.primitive != Primitive::Null {
-        println!("{result:?}");
+        if result.primitive != Primitive::Null {
+            println!("{}", result.to_string());
+        }
+        // println!("{result:?}");
         // }
     }
 }

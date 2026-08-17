@@ -32,7 +32,7 @@ pub enum PrimType {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct List {
-    pub is_uniform: bool,
+    pub ltype: Option<PrimType>,
     pub elems: Vec<Object>,
 }
 
@@ -53,7 +53,6 @@ impl std::fmt::Debug for Object {
         write!(f, "Obj({:?})", self.primitive)
     }
 }
-
 
 impl Object {
     pub fn make_int(n: i64) -> Self {
@@ -92,22 +91,35 @@ impl Object {
             vtable: &vtable::function_vtable::VTABLE,
         }
     }
+    fn make_rust_func(func: RustFunc) -> Self {
+        Self {
+            primitive: Primitive::Function(Function::RustFn(func)),
+            vtable: &vtable::function_vtable::VTABLE,
+        }
+    }
     pub fn make_list(vec: Vec<Object>) -> Self {
         if vec.is_empty() {
             return Self {
-                primitive: Primitive::List(List { is_uniform: true, elems: vec![] }),
+                primitive: Primitive::List(List {
+                    ltype: None,
+                    elems: vec![],
+                }),
                 vtable: &vtable::list_vtable::VTABLE,
             };
         }
         // let mut is_uniform = true;
         let obj_type = vec.first().unwrap().get_type();
-        let is_uniform = vec
-            .iter()
-            .skip(1)
-            .all(|o| o.get_type() == obj_type);
+        let is_uniform = vec.iter().skip(1).all(|o| o.get_type() == obj_type);
 
         Self {
-            primitive: Primitive::List(List { is_uniform, elems: vec }),
+            primitive: Primitive::List(List {
+                ltype: if is_uniform {
+                    Some(vec[0].get_type())
+                } else {
+                    None
+                },
+                elems: vec,
+            }),
             vtable: &vtable::list_vtable::VTABLE,
         }
     }
@@ -130,7 +142,6 @@ impl Object {
             P::Class(_) => PT::Class,
         }
     }
-
 }
 
 impl PartialEq for Object {
@@ -150,13 +161,23 @@ impl ToString for Object {
             P::Float(v) => v.to_string(),
             P::Bool(v) => v.to_string(),
             P::Char(v) => v.to_string(),
-            P::Class(_) => format!("Class"),
-            P::Type(v) => stringify!(v).to_string(),
-            P::Function(_) => format!("Function"),
-            P::List(_) => format!("List"),
+            P::Class(_) => String::from("Class"),
+            P::Type(v) => format!("{v:?}"),
+            P::Function(_) => String::from("Function"),
+            P::List(List {
+                ltype: _,
+                ref elems,
+            }) => format!(
+                "[{}]",
+                elems
+                    .iter()
+                    .map(ToString::to_string)
+                    .reduce(|a, o| format!("{}, {}", a.to_string(), o.to_string()))
+                    .unwrap_or_default()
+            ),
             P::Null => String::from("Null"),
         }
-    }    
+    }
 }
 impl Primitive {
     fn is_truthy(&self) -> bool {
@@ -166,9 +187,9 @@ impl Primitive {
             Self::Float(val) => *val != 0.0,
             Self::Char(_) => true,
             Self::Bool(val) => *val,
-            
+
             Self::Type(_) => true,
-            Self::List(List { is_uniform: _, elems}) => !elems.is_empty(),
+            Self::List(List { ltype: _, elems }) => !elems.is_empty(),
             Self::Function(_) => true,
             Self::Class(_) => true,
         }
@@ -206,7 +227,7 @@ pub struct BinOpExpr {
     pub right: Box<Expression>,
 }
 
-type RustFunc = fn(Vec<Object>) -> Object;
+pub type RustFunc = fn(Vec<Object>) -> Object;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Expression {
@@ -267,17 +288,16 @@ impl Default for Scope {
                 value: Box::new(Object::make_null()),
             },
         );
-        initial_vars.insert(
-        String::from("print"),
-        VarData {
-            is_const: true,
-            is_init: true,
-            value: Box::new(Object {
-                primitive: Primitive::Function(Function::RustFn(crate::stdlib::print)),
-                vtable: &crate::vtable::function_vtable::VTABLE,
-            })
-        },
-        );
+        for (name, func) in crate::stdlib::FUNCS {
+            initial_vars.insert(
+                name.to_string(),
+                VarData {
+                    is_const: true,
+                    is_init: true,
+                    value: Box::new(Object::make_rust_func(*func)),
+                },
+            );
+        }
 
         Self { vars: initial_vars }
     }
@@ -343,9 +363,7 @@ impl Expression {
                 result
             }
             Self::ListExpr(list) => {
-                let l = list
-                    .into_iter()
-                    .map(|e| e.evaluate(scope));
+                let l = list.into_iter().map(|e| e.evaluate(scope));
                 Object::make_list(l.collect())
             }
             Self::MakeVar(name, config) => {
