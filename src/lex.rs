@@ -63,9 +63,9 @@ impl TokenType {
     pub fn to_value(&self) -> Option<Expression> {
         if self.is_value() {
             Some(match self {
-                Self::Int(n) => Object::make_int(*n).to_expr(),
-                Self::Float(n) => Object::make_float(*n).to_expr(),
-                Self::Char(c) => Object::make_char(*c).to_expr(),
+                Self::Int(n) => Object::make_int(*n).make_expr(),
+                Self::Float(n) => Object::make_float(*n).make_expr(),
+                Self::Char(c) => Object::make_char(*c).make_expr(),
                 Self::Id(name) => Expression::Variable(name.clone()),
                 _ => panic!(),
             })
@@ -114,10 +114,7 @@ impl Token {
         }
     }
     fn is_semi(&self) -> bool {
-        match self.info {
-            TokenType::Operator(gen::Operator::Semicolon) => true,
-            _ => false,
-        }
+        matches!(self.info, TokenType::Operator(gen::Operator::Semicolon))
     }
 }
 
@@ -135,9 +132,8 @@ pub fn tokenize(program: &str) -> Vec<Token> {
         let line = line.split("//").next().expect("Split len > 0"); // Remove everything after //
         let toks = line.split_whitespace().map(|s| {
             let t = resolve_token(s, line_number);
-            if t.is_err() {
-                eprintln!("{}", t.unwrap_err());
-                std::process::exit(1);
+            if let Err(e) = t {
+                panic!("{e}");
             }
             t.unwrap()
         });
@@ -179,7 +175,7 @@ pub fn tokenize2(program: &str) -> Vec<Token> {
             if next.is_whitespace()
                 || operators()
                     .keys()
-                    .any(|k| k.chars().nth(0).unwrap() == next)
+                    .any(|k| k.chars().next().unwrap() == next)
             {
                 vec.push(Token::new(
                     TokenType::Int(program[start..i].parse().unwrap()),
@@ -231,16 +227,14 @@ pub fn tokenize2(program: &str) -> Vec<Token> {
     vec
 }
 pub fn tokenize3(tokens: &str) -> Vec<Token> {
-    let vec = vec![];
-
-    vec
+    todo!();
 }
 
 fn remove_initial_and_trailing_semis(tokens: &mut Vec<Token>) {
-    while tokens.len() > 0 && tokens.first().unwrap().is_semi() {
+    while !tokens.is_empty() && tokens.first().unwrap().is_semi() {
         tokens.remove(0);
     }
-    while tokens.len() > 0 && tokens[tokens.len() - 2].is_semi() {
+    while !tokens.is_empty() && tokens[tokens.len() - 2].is_semi() {
         tokens.pop();
     }
 }

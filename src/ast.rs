@@ -2,9 +2,9 @@ use crate::gen::Operator;
 use crate::vtable::{self, pick_binfunc, pick_unfunc, VTable};
 use std::collections::HashMap;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Default, PartialEq, Clone)]
 pub enum Primitive {
-    Null,
+    #[default] Null,
     Int(i64),
     Float(f64),
     Char(char),
@@ -13,7 +13,7 @@ pub enum Primitive {
     Type(PrimType),
     List(List),
     Function(Function),
-    Class(Vec<Box<Primitive>>),
+    Class(Vec<Primitive>),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -123,7 +123,7 @@ impl Object {
             vtable: &vtable::list_vtable::VTABLE,
         }
     }
-    pub fn to_expr(self) -> Expression {
+    pub fn make_expr(self) -> Expression {
         Expression::Value(self)
     }
     pub fn get_type(&self) -> PrimType {
@@ -148,9 +148,6 @@ impl PartialEq for Object {
     fn eq(&self, other: &Self) -> bool {
         self.primitive == other.primitive
     }
-    fn ne(&self, other: &Self) -> bool {
-        !self.eq(other)
-    }
 }
 
 impl ToString for Object {
@@ -172,7 +169,7 @@ impl ToString for Object {
                 elems
                     .iter()
                     .map(ToString::to_string)
-                    .reduce(|a, o| format!("{}, {}", a.to_string(), o.to_string()))
+                    .reduce(|a, o| format!("{a}, {o}"))
                     .unwrap_or_default()
             ),
             P::Null => String::from("Null"),
@@ -193,12 +190,6 @@ impl Primitive {
             Self::Function(_) => true,
             Self::Class(_) => true,
         }
-    }
-}
-
-impl Default for Primitive {
-    fn default() -> Self {
-        Self::Null
     }
 }
 
@@ -238,9 +229,9 @@ pub enum Expression {
     Loop(LoopExpr),
     UnOp(UnOpExpr),
     BinOp(BinOpExpr),
-    BlockExpr(Vec<Box<Expression>>),
-    ListExpr(Vec<Box<Expression>>),
-    Call(Vec<Box<Expression>>),
+    BlockExpr(Vec<Expression>),
+    ListExpr(Vec<Expression>),
+    Call(Vec<Expression>),
     Return(Box<Expression>),
 }
 
@@ -311,9 +302,9 @@ impl Expression {
         match self {
             Self::Value(data) => data,
             Self::Variable(name) => {
-                let varinfo = scope.vars.entry(name).or_insert(Default::default());
+                let varinfo = scope.vars.entry(name.clone()).or_default();
                 if !varinfo.is_init {
-                    panic!("Reading uninitialized variable");
+                    panic!("Reading uninitialized variable: {name}");
                 }
                 (*varinfo.value).clone()
             }
@@ -346,7 +337,7 @@ impl Expression {
             }
             Self::BinOp(binop) => {
                 if binop.op == Operator::Assign {
-                    assign(binop.left, binop.right, scope)
+                    assign(*binop.left, *binop.right, scope)
                 } else {
                     let left_val = (*binop.left).evaluate(scope);
                     let right_val = (*binop.right).evaluate(scope);
@@ -374,7 +365,7 @@ impl Expression {
                 Object::default()
             }
             Self::Call(vec) => {
-                assert!(vec.len() >= 1);
+                assert!(!vec.is_empty());
                 let func = vec[0].clone().evaluate(scope);
                 let Primitive::Function(func) = func.primitive else {
                     panic!("Can not call a non-function");
@@ -406,21 +397,18 @@ impl Expression {
         }
     }
 
-    pub fn push(&mut self, new_expr: Box<Self>) {
+    pub fn push(&mut self, new_expr: Self) {
         match self {
             Self::Value(Object {
                 primitive: Primitive::Null,
                 vtable: _,
-            }) => *self = *new_expr,
+            }) => *self = new_expr,
             Self::BlockExpr(exprs) => exprs.push(new_expr),
             _ => {
-                let exprs = vec![Box::new(self.clone()), new_expr];
+                let exprs = vec![self.clone(), new_expr];
                 *self = Expression::BlockExpr(exprs);
             }
         };
-    }
-    pub fn box_push(&mut self, new_expr: Self) {
-        self.push(Box::new(new_expr))
     }
 
     pub fn is_null_lit(&self) -> bool {
@@ -434,10 +422,10 @@ impl Expression {
     }
 }
 
-fn assign(left: Box<Expression>, right: Box<Expression>, scope: &mut Scope) -> Object {
+fn assign(left: Expression, right: Expression, scope: &mut Scope) -> Object {
     let value = Box::new(right.evaluate(scope));
 
-    let Expression::Variable(name) = *left else {
+    let Expression::Variable(name) = left else {
         panic!("Attempt to assign to non-variable");
     };
     let Some(var) = scope.vars.get_mut(&name) else {
@@ -451,19 +439,4 @@ fn assign(left: Box<Expression>, right: Box<Expression>, scope: &mut Scope) -> O
     var.is_init = true;
 
     Object::default()
-}
-
-pub fn test_ast() {
-    use crate::vtable::wrap_prim;
-
-    let binop = BinOpExpr {
-        op: Operator::Slash,
-        left: Box::new(Expression::Value(wrap_prim(Primitive::Int(5)))),
-        right: Box::new(Expression::Value(wrap_prim(Primitive::Float(5.5)))),
-    };
-
-    let head = Expression::BinOp(binop);
-
-    let result = head.evaluate(&mut Scope::default());
-    dbg!(result);
 }

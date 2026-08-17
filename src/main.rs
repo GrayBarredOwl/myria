@@ -29,6 +29,18 @@ fn main() {
 
     let tokens = vec![
         Token {
+            info: TokenType::Keyword(gen::Keyword::Let),
+            metadata: Meta { line_number: 1 },
+        },
+        Token {
+            info: TokenType::Id(String::from("x")),
+            metadata: Meta { line_number: 1 },
+        },
+        Token {
+            info: TokenType::Operator(gen::Operator::Assign),
+            metadata: Meta { line_number: 1 },
+        },
+        Token {
             info: TokenType::Id(String::from("import")),
             metadata: Meta { line_number: 1 },
         },
@@ -48,6 +60,7 @@ fn main() {
             info: TokenType::Operator(gen::Operator::Semicolon),
             metadata: Meta { line_number: 1 },
         },
+
         Token {
             info: TokenType::Id(String::from("print")),
             metadata: Meta { line_number: 2 },
@@ -57,15 +70,7 @@ fn main() {
             metadata: Meta { line_number: 2 },
         },
         Token {
-            info: TokenType::Int(5),
-            metadata: Meta { line_number: 2 },
-        },
-        Token {
-            info: TokenType::Operator(gen::Operator::Equals),
-            metadata: Meta { line_number: 2 },
-        },
-        Token {
-            info: TokenType::Int(5),
+            info: TokenType::Id(String::from("x")),
             metadata: Meta { line_number: 2 },
         },
         Token {
@@ -114,7 +119,7 @@ fn repl() {
             break;
         }
 
-        let toks = lex::tokenize(&resp);
+        let toks = lex::tokenize(resp);
         dbg!(&toks);
         let parser = Parser::new(&toks);
         let expr = parser.parse();

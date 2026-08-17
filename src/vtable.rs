@@ -318,7 +318,7 @@ pub mod list_vtable {
     fn add(x: Primitive, y: Primitive) -> Object {
         let x = get_prim!(x, List);
         let y = get_prim!(y, List);
-        Object::make_list(x.elems.into_iter().chain(y.elems.into_iter()).collect())
+        Object::make_list(x.elems.into_iter().chain(y.elems).collect())
     }
     fn eq(x: Primitive, y: Primitive) -> Object {
         let x = get_prim!(x, List);

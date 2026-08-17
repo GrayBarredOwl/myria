@@ -6,12 +6,12 @@ macro_rules! reg_func {
     };
 }
 
-pub const FUNCS: &[(&'static str, RustFunc)] = reg_func![print, dbg_print, nop, exit, import];
+pub const FUNCS: &[(&str, RustFunc)] = reg_func![print, dbg_print, nop, exit, import];
 
 fn exit(args: Vec<Object>) -> Object {
     use crate::ast::Primitive;
     let ret_val = {
-        if args.len() == 0 {
+        if args.is_empty() {
             0
         } else {
             let o = &args[0];
@@ -73,7 +73,7 @@ fn import(args: Vec<Object>) -> Object {
         unreachable!();
     };
 
-    if fp.elems.len() == 0 {
+    if fp.elems.is_empty() {
         panic!("import must take a non-zero length string");
     }
 
@@ -91,12 +91,12 @@ fn import(args: Vec<Object>) -> Object {
         Err(e) => e,
     };
     match err.kind() {
-        ErrorKind::NotFound => fp.extend(".mylang".chars()),
+        ErrorKind::NotFound => fp.push_str(".mylang"),
         _ => panic!("Import error: {err}"),
     }
 
     match gen::run_file(&fp) {
-        Ok(obj) => return obj,
+        Ok(obj) => obj,
         Err(e) => panic!("Import error: {e}"),
     }
 }
@@ -104,6 +104,6 @@ fn import(args: Vec<Object>) -> Object {
 fn is_string(p: &Primitive) -> bool {
     match p {
         Primitive::List(l) => l.ltype == Some(PrimType::Char),
-        _ => return false,
+        _ => false,
     }
 }

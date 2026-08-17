@@ -21,7 +21,7 @@ impl<'a> Parser<'a> {
             };
 
             match total {
-                Some(ref mut expr) => expr.box_push(next_expr),
+                Some(ref mut expr) => expr.push(next_expr),
                 None => total = Some(next_expr),
             }
             // dbg!(&total);
@@ -47,40 +47,39 @@ impl<'a> Parser<'a> {
         let next_token = self.peek().info.clone();
         if next_token.is_semi() {
             self.consume();
-            match self.parse_expr() {
-                Some(expr) => cur_expr = expr,
-                None => (),
+            if let Some(expr) = self.parse_expr() {
+                cur_expr = expr;
             }
         } else if matches!(next_token, TT::Keyword(KW::Let) | TT::Keyword(KW::Var)) {
-            cur_expr.box_push(self.parse_var_dec());
-            cur_expr.box_push(self.parse_expr().unwrap());
+            cur_expr.push(self.parse_var_dec());
+            cur_expr.push(self.parse_expr().unwrap());
         } else if matches!(next_token, TT::Keyword(KW::If)) {
-            cur_expr.box_push(self.parse_if());
+            cur_expr.push(self.parse_if());
         } else if matches!(next_token, TT::Keyword(KW::Loop)) {
-            cur_expr.box_push(self.parse_loop());
+            cur_expr.push(self.parse_loop());
         } else if matches!(next_token, TT::Operator(Operator::LCurly)) {
-            cur_expr.box_push(self.parse_block());
+            cur_expr.push(self.parse_block());
         } else if matches!(next_token, TT::Operator(Operator::LBracket)) {
-            cur_expr.box_push(self.parse_list());
+            cur_expr.push(self.parse_list());
         } else if matches!(next_token, TT::Str(_)) {
-            cur_expr.box_push(self.parse_str());
+            cur_expr.push(self.parse_str());
         } else if matches!(next_token, TT::Keyword(KW::Func)) {
-            cur_expr.box_push(self.parse_func());
+            cur_expr.push(self.parse_func());
         } else if matches!(next_token, TT::Keyword(KW::Call)) {
-            cur_expr.box_push(self.parse_fn_call());
+            cur_expr.push(self.parse_fn_call());
         } else if next_token.is_unary_op() {
-            cur_expr.box_push(self.parse_unop());
+            cur_expr.push(self.parse_unop());
         } else if next_token.is_value() {
             if !self.can_peek_ahead(1) {
                 self.consume();
-                cur_expr.box_push(next_token.to_value().unwrap());
+                cur_expr.push(next_token.to_value().unwrap());
             } else if self.peek_ahead(1).info.is_binary_op() {
-                cur_expr.box_push(self.parse_binop());
+                cur_expr.push(self.parse_binop());
             } else if self.peek_ahead(1).info == TT::Operator(Operator::LParen) {
-                cur_expr.box_push(self.parse_fn_call());
+                cur_expr.push(self.parse_fn_call());
             } else if self.peek_ahead(1).info.is_semi() {
                 self.advance(2);
-                cur_expr.box_push(next_token.to_value().unwrap());
+                cur_expr.push(next_token.to_value().unwrap());
             } else {
                 panic!("{next_token:?} -- {:?}", self.peek_ahead(1).info);
             }
@@ -129,7 +128,7 @@ impl<'a> Parser<'a> {
         let config = VarData {
             is_const: matches!(maker_kw.info, TT::Keyword(KW::Let)),
             is_init: false,
-            value: Box::new(Default::default()),
+            value: Default::default(),
         };
 
         let TT::Id(ref var_name) = self.peek().info else {
@@ -195,7 +194,7 @@ impl<'a> Parser<'a> {
 
         let condition = &self.tokens[self.current..(self.current + cond_expr_len)];
 
-        let condition_parser = Parser::new(&condition);
+        let condition_parser = Parser::new(condition);
         self.advance(cond_expr_len);
 
         let body = self.parse_block();
@@ -384,7 +383,7 @@ impl<'a> Parser<'a> {
         let _rparen = self.consume();
         let body = self.parse_block();
 
-        Object::make_func(params, Box::new(body)).to_expr()
+        Object::make_func(params, Box::new(body)).make_expr()
     }
     fn parse_fn_call(&mut self) -> Expression {
         type TT = TokenType;
@@ -408,20 +407,20 @@ impl<'a> Parser<'a> {
 
         let args = self.parse_args();
 
-        let mut fn_data = vec![Box::new(Expression::Variable(func))];
+        let mut fn_data = vec![Expression::Variable(func)];
         fn_data.extend(args);
 
         Expression::Call(fn_data)
     }
 
-    fn parse_args(&mut self) -> Vec<Box<Expression>> {
+    fn parse_args(&mut self) -> Vec<Expression> {
         self.parse_collections(Operator::LParen, Operator::RParen)
     }
     fn parse_list(&mut self) -> Expression {
         let vals = self.parse_collections(Operator::LBracket, Operator::RBracket);
         Expression::ListExpr(vals)
     }
-    fn parse_collections(&mut self, opening: Operator, closing: Operator) -> Vec<Box<Expression>> {
+    fn parse_collections(&mut self, opening: Operator, closing: Operator) -> Vec<Expression> {
         type TT = TokenType;
         type Op = Operator;
 
@@ -439,7 +438,7 @@ impl<'a> Parser<'a> {
             }
             let tokens = &self.tokens[start..self.current];
             let parser = Parser::new(tokens);
-            vec.push(Box::new(parser.parse()));
+            vec.push(parser.parse());
 
             if self.peek().info == TT::Operator(Op::Comma) {
                 self.consume();
@@ -456,7 +455,7 @@ impl<'a> Parser<'a> {
         let TokenType::Str(ref string) = self.consume().info else {
             panic!();
         };
-        Object::make_list(string.chars().map(|c| Object::make_char(c)).collect()).to_expr()
+        Object::make_list(string.chars().map(Object::make_char).collect()).make_expr()
     }
 }
 
@@ -465,7 +464,7 @@ Improvements:
 
 Parenthesis,
 Order of operations,
-Better lexer (having adjacent tokens w/o whitespace, strings, characters, block commetns),
+Better lexer (having adjacent tokens w/o whitespace, strings, characters, block comments),
 Nested commas (like function calls in function calls, or function calls in list literals)
 Return, break, continue keyworda,
 Classes,
