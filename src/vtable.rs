@@ -83,6 +83,7 @@ pub fn wrap_prim(prim: Primitive) -> Object {
         P::Float(_) => &float_vtable::VTABLE,
         P::Char(_) => &char_vtable::VTABLE,
         P::Bool(_) => &bool_vtable::VTABLE,
+        P::Type(_) => &type_vtable::VTABLE,
         P::List(_) => &list_vtable::VTABLE,
         P::Function(_) => &function_vtable::VTABLE,
         P::Class(_) => &class_vtable::VTABLE,
@@ -333,6 +334,12 @@ pub mod function_vtable {
 }
 
 pub mod class_vtable {
+    use super::*;
+
+    pub static VTABLE: VTable = VTable::all_invalid();
+}
+
+pub mod type_vtable {
     use super::*;
 
     pub static VTABLE: VTable = VTable::all_invalid();

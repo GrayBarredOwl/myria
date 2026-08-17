@@ -10,9 +10,24 @@ pub enum Primitive {
     Char(char),
     Bool(bool),
 
+    Type(PrimType),
     List(List),
     Function(Function),
     Class(Vec<Box<Primitive>>),
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum PrimType {
+    Null,
+    Int,
+    Float,
+    Char,
+    Bool,
+
+    Type,
+    List,
+    Function,
+    Class,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -85,10 +100,11 @@ impl Object {
             };
         }
         // let mut is_uniform = true;
-        let obj_type = vec.first().unwrap().get_def_type();
+        let obj_type = vec.first().unwrap().get_type();
         let is_uniform = vec
             .iter()
-            .all(|o| o.get_def_type() == obj_type);
+            .skip(1)
+            .all(|o| o.get_type() == obj_type);
 
         Self {
             primitive: Primitive::List(List { is_uniform, elems: vec }),
@@ -98,20 +114,23 @@ impl Object {
     pub fn to_expr(self) -> Expression {
         Expression::Value(self)
     }
-
-    fn get_def_type(&self) -> Primitive {
+    pub fn get_type(&self) -> PrimType {
         type P = Primitive;
+        type PT = PrimType;
         match self.primitive {
-            P::Int(_) => P::Int(Default::default()),
-            P::Float(_) => P::Float(Default::default()),
-            P::Bool(_) => P::Bool(Default::default()),
-            P::Char(_) => P::Char(Default::default()),
-            P::Null => P::Null,
-            P::List(_) => P::List(List { is_uniform: true, elems: vec![]}),
-            P::Class(_) => P::Class(vec![]),
-            P::Function(_) => P::Function(Function::RustFn(crate::stdlib::nop)),
+            P::Int(_) => PT::Int,
+            P::Float(_) => PT::Float,
+            P::Char(_) => PT::Char,
+            P::Bool(_) => PT::Bool,
+            P::Null => PT::Null,
+            P::Type(_) => PT::Type,
+
+            P::List(_) => PT::List,
+            P::Function(_) => PT::Function,
+            P::Class(_) => PT::Class,
         }
     }
+
 }
 
 impl PartialEq for Object {
@@ -132,6 +151,7 @@ impl ToString for Object {
             P::Bool(v) => v.to_string(),
             P::Char(v) => v.to_string(),
             P::Class(_) => format!("Class"),
+            P::Type(v) => stringify!(v).to_string(),
             P::Function(_) => format!("Function"),
             P::List(_) => format!("List"),
             P::Null => String::from("Null"),
@@ -146,7 +166,8 @@ impl Primitive {
             Self::Float(val) => *val != 0.0,
             Self::Char(_) => true,
             Self::Bool(val) => *val,
-
+            
+            Self::Type(_) => true,
             Self::List(List { is_uniform: _, elems}) => !elems.is_empty(),
             Self::Function(_) => true,
             Self::Class(_) => true,
