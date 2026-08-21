@@ -323,9 +323,9 @@ impl<'a> Parser<'a> {
                 _ => (),
             };
         }
-        if self.is_finished() {
-            panic!("Unclosed blocK!");
-        }
+        // if self.is_finished() {
+            // panic!("Unclosed block");
+        // }
         let body = &self.tokens[block_start..(self.current - 1)];
         let body_parser = Parser::new(body);
         // dbg!(&body);
@@ -355,6 +355,12 @@ impl<'a> Parser<'a> {
             match &p.info {
                 TT::Id(name) => {
                     if !should_be_comma {
+                        if name == "recurs" {
+                            panic!(
+                                "(Line {}) Invalid function parameter name: recurs",
+                                p.metadata.line_number
+                            )
+                        }
                         params.push(name.clone());
                         should_be_comma = true;
                     } else {
@@ -383,7 +389,7 @@ impl<'a> Parser<'a> {
         let _rparen = self.consume();
         let body = self.parse_block();
 
-        Object::make_func(params, Box::new(body)).make_expr()
+        Object::make_func(params, false, Box::new(body)).make_expr()
     }
     fn parse_fn_call(&mut self) -> Expression {
         type TT = TokenType;
@@ -466,19 +472,21 @@ impl<'a> Parser<'a> {
 Improvements:
 
 Parenthesis,
-Order of operations, 
-Better lexer (having adjacent tokens w/o whitespace, strings, characters, block comments),
+Order of operations,
+block comments,
+List indexing
+For each loop
 Nested commas (like function calls in function calls, or function calls in list literals)
-Having the left of a binary expression be compound ( [ 1 ] != [ 2 ], inline function calls ) 
+Having the left of a binary expression be compound ( [ 1 ] != [ 2 ], inline function calls )
 Return, break, continue keyworda,
 Classes,
 Variable scope,
 Call stack,
-Type casting
-List length / cast it to int ?
-Modulus function
 Rust and/or C API
 Exceptions & error handling
 Variadic function syntax
 Better error messages
+New extension
 */
+
+// 1 + 4 * 4

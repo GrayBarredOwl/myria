@@ -7,14 +7,15 @@ mod vtable;
 
 use std::{env, fs, io::Write};
 
-use crate::{
-    ast::Primitive,
-};
+use crate::ast::Primitive;
 
 fn main() {
     let mut args = env::args();
     let _this_path = args.next().expect("Always contains it's own file path");
-    let Some(file) = args.next() else { repl(); return; };
+    let Some(file) = args.next() else {
+        repl();
+        return;
+    };
     let program = fs::read_to_string(&file);
     let Ok(program) = program else {
         panic!("File({}) could not be read: {}", file, program.unwrap_err());
@@ -60,7 +61,7 @@ fn repl() {
             break;
         }
 
-        let lexer = lex::Lexer::new(&resp);
+        let lexer = lex::Lexer::new(resp);
         let toks = lexer.tokenize();
         dbg!(&toks);
         let parser = Parser::new(&toks);
@@ -69,7 +70,7 @@ fn repl() {
         let result = expr.evaluate(&mut scope);
         // if result.primitive != Primitive::Null {
         if result.primitive != Primitive::Null {
-            println!("{}", result.to_string());
+            println!("{result}");
         }
         // println!("{result:?}");
         // }

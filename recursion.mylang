@@ -1,0 +1,15 @@
+let factorial = func(n) {
+    if n <= 1 {
+        1
+    } else {
+        n * recurs(n-1)
+    }
+}
+
+factorial(3)
+
+
+# let min = func(x, y, *) {
+#     var min_val = x;
+#     
+# }

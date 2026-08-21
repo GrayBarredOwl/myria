@@ -1,33 +1,26 @@
 use crate::ast::{Object, PrimType, Primitive, RustFunc};
 
-macro_rules! reg_func {
-    ($($f:ident),+ $(,)?) => {
-        &[ $( (stringify!($f), $f), )* ]
-    };
-}
-
 pub const FUNCS: &[(&str, RustFunc)] = &[
     ("print", RustFunc::new(None, print)),
     ("dbg_print", RustFunc::new(None, dbg_print)),
     ("nop", RustFunc::new(None, nop)),
     ("exit", RustFunc::new(None, exit)),
     ("import", RustFunc::new(Some(1), import)),
+    ("mod", RustFunc::new(Some(2), modulus)),
 ];
 
 fn exit(args: Vec<Object>) -> Object {
     use crate::ast::Primitive;
+    let mut args = args;
     let ret_val = {
         if args.is_empty() {
             0
         } else {
-            let o = &args[0];
-            match o.primitive {
+            let o = args.swap_remove(0);
+            match PrimType::int_cast(o).primitive {
                 Primitive::Int(i) => i as i32,
-                Primitive::Float(f) => f as i32,
-                Primitive::Char(c) => c as i32,
-                Primitive::Bool(b) => b as i32,
-                Primitive::Null => 0,
-                _ => 1,
+                Primitive::Null => -1,
+                _ => unreachable!(),
             }
         }
     };
@@ -102,10 +95,35 @@ fn import(args: Vec<Object>) -> Object {
         Err(e) => panic!("Import error: {e}"),
     }
 }
-fn get_type(args: Vec<Object>) -> Object {
-    Object::make_type(args.first().cloned().unwrap_or_default().get_type())
-}
 
+fn modulus(args: Vec<Object>) -> Object {
+    if args.len() != 2 {
+        panic!("mod function takes 2 arguments, not {}", args.len());
+    }
+    type P = Primitive;
+    return match args[0].primitive {
+        P::Int(x) => match args[1].primitive {
+            P::Int(y) => Object::make_int(x % y),
+            P::Float(y) => Object::make_float(x as f64 % y),
+            _ => panic!(
+                "mod function only takes ints and floats, not {:?}",
+                args[1].get_type()
+            ),
+        },
+        P::Float(x) => match args[1].primitive {
+            P::Int(y) => Object::make_float(x % y as f64),
+            P::Float(y) => Object::make_float(x % y),
+            _ => panic!(
+                "mod function only takes ints and floats, not {:?}",
+                args[1].get_type()
+            ),
+        },
+        _ => panic!(
+            "mod function only takes ints and floats, not {:?}",
+            args[0].get_type()
+        ),
+    };
+}
 
 fn is_string(p: &Primitive) -> bool {
     match p {

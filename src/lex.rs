@@ -126,7 +126,7 @@ impl PartialEq for Token {
 pub struct Lexer<'a> {
     current: usize,
     cur_line: usize,
-    string: &'a str
+    string: &'a str,
 }
 impl<'a> Lexer<'a> {
     pub fn new(string: &'a str) -> Self {
@@ -138,10 +138,10 @@ impl<'a> Lexer<'a> {
     }
     pub fn tokenize(mut self) -> Vec<Token> {
         let mut vec = vec![];
-        
+
         while self.can_peek() {
             let c = self.peek();
-            
+
             if c.is_whitespace() {
                 if c == '\n' {
                     vec.push(self.make_tok(TokenType::Operator(Operator::Semicolon)));
@@ -200,14 +200,14 @@ impl<'a> Lexer<'a> {
     }
     fn resolve_comment(&mut self) {
         assert!(self.can_peek() && self.peek() == '#');
-        while self.can_peek() && self.consume() != '\n' { }
+        while self.can_peek() && self.consume() != '\n' {}
         self.cur_line += 1;
     }
     fn resolve_number(&mut self) -> Token {
         assert!(self.can_peek() && self.peek().is_numeric());
         let mut num_dots = 0;
         let start = self.current;
-        
+
         while self.can_peek() {
             let n = self.consume();
             if n.is_whitespace() || (Self::op_first_chars().contains(&n) && n != '.') {
@@ -216,10 +216,16 @@ impl<'a> Lexer<'a> {
             } else if n == '.' {
                 num_dots += 1;
                 if num_dots > 1 {
-                    panic!("(Line {}) Number can not contain multiple periods", self.cur_line);
+                    panic!(
+                        "(Line {}) Number can not contain multiple periods",
+                        self.cur_line
+                    );
                 }
             } else if !n.is_numeric() {
-                panic!("(Line {}) Number can only contain 0-9 and period", self.cur_line);
+                panic!(
+                    "(Line {}) Number can only contain 0-9 and period",
+                    self.cur_line
+                );
             }
         }
 
@@ -236,15 +242,21 @@ impl<'a> Lexer<'a> {
         let start = self.current;
         let _first = self.consume();
         if !self.can_peek() {
-            return self.make_tok(TokenType::Operator(*operators().get(&self.string[start..]).unwrap()));
+            return self.make_tok(TokenType::Operator(
+                *operators().get(&self.string[start..]).unwrap(),
+            ));
         }
         let second = self.consume();
         if !matches!(second, '=' | '&' | '|') {
             self.unconsume();
-            return self.make_tok(TokenType::Operator(*operators().get(&self.string[start..self.current]).unwrap()));
+            return self.make_tok(TokenType::Operator(
+                *operators().get(&self.string[start..self.current]).unwrap(),
+            ));
         }
 
-        self.make_tok(TokenType::Operator(*operators().get(&self.string[start..self.current]).unwrap()))
+        self.make_tok(TokenType::Operator(
+            *operators().get(&self.string[start..self.current]).unwrap(),
+        ))
     }
     fn resolve_char(&mut self) -> Token {
         assert!(self.can_peek() && self.peek() == '\'');
@@ -294,18 +306,22 @@ impl<'a> Lexer<'a> {
         } else {
             self.make_tok(TokenType::Id(id.into()))
         }
-
     }
     fn make_tok(&self, tt: TokenType) -> Token {
-        Token::new(tt, Meta { line_number: self.cur_line })
+        Token::new(
+            tt,
+            Meta {
+                line_number: self.cur_line,
+            },
+        )
     }
     fn op_first_chars() -> &'static Vec<char> {
         static VEC: OnceLock<Vec<char>> = OnceLock::new();
         VEC.get_or_init(|| {
             operators()
                 .keys()
-                .map(|k| k.chars().next().unwrap()).collect()
+                .map(|k| k.chars().next().unwrap())
+                .collect()
         })
     }
 }
-

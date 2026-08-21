@@ -4,7 +4,8 @@ use std::collections::HashMap;
 
 #[derive(Debug, Default, PartialEq, Clone)]
 pub enum Primitive {
-    #[default] Null,
+    #[default]
+    Null,
     Int(i64),
     Float(f64),
     Char(char),
@@ -31,21 +32,21 @@ pub enum PrimType {
 }
 
 impl PrimType {
-    fn cast(self, obj: Object) -> Object {
+    pub fn cast(self, obj: Object) -> Object {
         match self {
             Self::Null => Object::make_null(),
             Self::Bool => Self::bool_cast(obj),
             Self::Int => Self::int_cast(obj),
             Self::Float => Self::float_cast(obj),
             Self::Char => Self::char_cast(obj),
-            
+
             Self::Type => Self::type_cast(obj),
             Self::List => Self::list_cast(obj),
             Self::Function => Self::func_cast(obj),
             Self::Class => Self::class_cast(obj),
         }
     }
-    fn bool_cast(obj: Object) -> Object {
+    pub fn bool_cast(obj: Object) -> Object {
         type P = Primitive;
         let b = match obj.primitive {
             P::Null | P::Type(_) => return Object::make_null(),
@@ -53,7 +54,7 @@ impl PrimType {
         };
         Object::make_bool(b)
     }
-    fn int_cast(obj: Object) -> Object {
+    pub fn int_cast(obj: Object) -> Object {
         type P = Primitive;
         let i = match obj.primitive {
             P::Null | P::Type(_) => return Object::make_null(),
@@ -61,31 +62,53 @@ impl PrimType {
             P::Int(i) => i,
             P::Float(f) => f as i64,
             P::Char(c) => c as i64,
-            P::List(List { ltype: _, ref elems }) => elems.len() as i64,
+            P::List(List {
+                ltype: _,
+                ref elems,
+            }) => elems.len() as i64,
             P::Function(f) => match f {
                 Function::RustFn(RustFunc { num_args, .. }) => num_args.unwrap_or(-1),
-                Function::LangFn(ref pnames, _) => pnames.len() as i64,
+                Function::LangFn(LangFunc {
+                    ref params,
+                    is_variadic: _,
+                    body: _,
+                }) => params.len() as i64,
             },
             P::Class(ref mems) => mems.len() as i64,
-
         };
         Object::make_int(i)
     }
-    fn float_cast(obj: Object) -> Object {
+    pub fn float_cast(obj: Object) -> Object {
         type P = Primitive;
         let f = match obj.primitive {
-            P::Null | P::Char(_) | P::Type(_) | P::List(_) | P::Function(_) | P::Class(_) => return Object::make_null(),
-            P::Bool(b) => if b { 1.0 } else { 0.0 },
+            P::Null | P::Char(_) | P::Type(_) | P::List(_) | P::Function(_) | P::Class(_) => {
+                return Object::make_null()
+            }
+            P::Bool(b) => {
+                if b {
+                    1.0
+                } else {
+                    0.0
+                }
+            }
             P::Int(i) => i as f64,
             P::Float(f) => f,
         };
         Object::make_float(f)
     }
-    fn char_cast(obj: Object) -> Object {
+    pub fn char_cast(obj: Object) -> Object {
         type P = Primitive;
         let c = match obj.primitive {
-            P::Null | P::Float(_) | P::Class(_) | P::Function(_) | P::Type(_) | P::List(_) => return Object::make_null(),
-            P::Bool(b) => if b { 'T' } else { 'F' },
+            P::Null | P::Float(_) | P::Class(_) | P::Function(_) | P::Type(_) | P::List(_) => {
+                return Object::make_null()
+            }
+            P::Bool(b) => {
+                if b {
+                    'T'
+                } else {
+                    'F'
+                }
+            }
             P::Int(i) => match char::from_u32(i as u32) {
                 Some(c) => c,
                 None => return Object::make_null(),
@@ -94,24 +117,23 @@ impl PrimType {
         };
         Object::make_char(c)
     }
-    fn type_cast(obj: Object) -> Object {
+    pub fn type_cast(obj: Object) -> Object {
         Object::make_type(obj.get_type())
     }
-    fn list_cast(obj: Object) -> Object {
+    pub fn list_cast(obj: Object) -> Object {
         Object::make_list(vec![obj.clone()])
     }
-    fn func_cast(obj: Object) -> Object {
+    pub fn func_cast(obj: Object) -> Object {
         type P = Primitive;
         match obj.primitive {
             P::Function(f) => Object::make_func_dir(f),
-            _ => return Object::make_null(),
+            _ => Object::make_null(),
         }
     }
-    fn class_cast(obj: Object) -> Object {
-        type P = Primitive;
+    pub fn class_cast(obj: Object) -> Object {
+        // type P = Primitive;
         match obj.primitive {
-            P::Class(_) => unimplemented!(),
-            _ => return Object::make_null(),
+            _ => unimplemented!(),
         }
     }
 }
@@ -122,10 +144,9 @@ pub struct List {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-#[allow(unpredictable_function_pointer_comparisons)]
 pub enum Function {
     RustFn(RustFunc),
-    LangFn(Vec<String>, Box<Expression>),
+    LangFn(LangFunc),
 }
 
 #[derive(Clone)]
@@ -170,9 +191,9 @@ impl Object {
             vtable: &vtable::null_vtable::VTABLE,
         }
     }
-    pub fn make_func(params: Vec<String>, body: Box<Expression>) -> Self {
+    pub fn make_func(params: Vec<String>, variadic: bool, body: Box<Expression>) -> Self {
         Self {
-            primitive: Primitive::Function(Function::LangFn(params, body)),
+            primitive: Primitive::Function(Function::LangFn(LangFunc::new(params, variadic, body))),
             vtable: &vtable::function_vtable::VTABLE,
         }
     }
@@ -250,36 +271,41 @@ impl PartialEq for Object {
 impl std::fmt::Display for Object {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         type P = Primitive;
-        write!(f, "{}", match self.primitive {
-            P::Int(v) => v.to_string(),
-            P::Float(v) => v.to_string(),
-            P::Bool(v) => v.to_string(),
-            P::Char(v) => v.to_string(),
-            P::Class(_) => String::from("Class"),
-            P::Type(v) => format!("{v:?}"),
-            P::Function(_) => String::from("Function"),
-            P::Null => String::from("Null"),
-            P::List(List {
-                ltype: Some(PrimType::Char),
-                ref elems
-            }) => elems
-                .iter()
-                .map(|c| match c.primitive {
-                    Primitive::Char(c) => c,
-                    _ => unreachable!(),
-                }).collect(),
-            P::List(List {
-                ltype: _,
-                ref elems,
-            }) => format!(
-                "[{}]",
-                elems
+        write!(
+            f,
+            "{}",
+            match self.primitive {
+                P::Int(v) => v.to_string(),
+                P::Float(v) => v.to_string(),
+                P::Bool(v) => v.to_string(),
+                P::Char(v) => v.to_string(),
+                P::Class(_) => String::from("Class"),
+                P::Type(v) => format!("{v:?}"),
+                P::Function(_) => String::from("Function"),
+                P::Null => String::from("Null"),
+                P::List(List {
+                    ltype: Some(PrimType::Char),
+                    ref elems,
+                }) => elems
                     .iter()
-                    .map(ToString::to_string)
-                    .reduce(|a, o| format!("{a}, {o}"))
-                    .unwrap_or_default()
-            ),
-        })
+                    .map(|c| match c.primitive {
+                        Primitive::Char(c) => c,
+                        _ => unreachable!(),
+                    })
+                    .collect(),
+                P::List(List {
+                    ltype: _,
+                    ref elems,
+                }) => format!(
+                    "[{}]",
+                    elems
+                        .iter()
+                        .map(ToString::to_string)
+                        .reduce(|a, o| format!("{a}, {o}"))
+                        .unwrap_or_default()
+                ),
+            }
+        )
     }
 }
 impl Primitive {
@@ -324,8 +350,8 @@ pub struct BinOpExpr {
     pub right: Box<Expression>,
 }
 
-// pub type RustFunc = fn(Vec<Object>) -> Object;
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[allow(unpredictable_function_pointer_comparisons)]
 pub struct RustFunc {
     num_args: Option<i64>,
     fn_ptr: fn(Vec<Object>) -> Object,
@@ -333,6 +359,17 @@ pub struct RustFunc {
 impl RustFunc {
     pub const fn new(num_args: Option<i64>, fn_ptr: fn(Vec<Object>) -> Object) -> Self {
         Self { num_args, fn_ptr }
+    }
+}
+#[derive(Clone, Debug, PartialEq)]
+pub struct LangFunc {
+    params: Vec<String>,
+    is_variadic: bool,
+    body: Box<Expression>,
+}
+impl LangFunc {
+    fn new(params: Vec<String>, is_variadic: bool, body: Box<Expression>) -> Self {
+        Self { params, is_variadic, body }
     }
 }
 
@@ -372,6 +409,13 @@ impl VarData {
             value: Box::new(value),
         }
     }
+    fn make_var(value: Object) -> Self {
+        Self {
+            is_const: false,
+            is_init: true,
+            value: Box::new(value),
+        }
+    }
 }
 #[derive(Debug)]
 pub struct Scope {
@@ -380,19 +424,13 @@ pub struct Scope {
 
 impl Default for Scope {
     fn default() -> Self {
-        let mut initial_vars = HashMap::new();
-        initial_vars.insert(
-            String::from("true"),
-            VarData::make_constant(Object::make_bool(true)),
-        );
-        initial_vars.insert(
-            String::from("false"),
-            VarData::make_constant(Object::make_bool(false)),
-        );
-        initial_vars.insert(
-            String::from("null"),
-            VarData::make_constant(Object::make_null()),
-        );
+        let mut ret = Self {
+            vars: HashMap::new(),
+        };
+        ret.push_const("true".into(), Object::make_bool(true));
+        ret.push_const("false".into(), Object::make_bool(false));
+        ret.push_const("null".into(), Object::make_null());
+
         type PT = PrimType;
         let types = [
             ("Null", PT::Null),
@@ -406,16 +444,21 @@ impl Default for Scope {
             ("Type", PT::Type),
         ];
         for (name, typ) in types {
-            initial_vars.insert(name.to_string(), VarData::make_constant(Object::make_type(typ)));
+            ret.push_const(name.into(), Object::make_type(typ));
         }
         for (name, func) in crate::stdlib::FUNCS {
-            initial_vars.insert(
-                name.to_string(),
-                VarData::make_constant(Object::make_rust_func(*func)),
-            );
+            ret.push_const((*name).into(), Object::make_rust_func(*func));
         }
 
-        Self { vars: initial_vars }
+        ret
+    }
+}
+impl Scope {
+    fn push_var(&mut self, name: String, value: Object) {
+        self.vars.insert(name, VarData::make_var(value));
+    }
+    fn push_const(&mut self, name: String, value: Object) {
+        self.vars.insert(name, VarData::make_constant(value));
     }
 }
 
@@ -489,51 +532,7 @@ impl Expression {
                 scope.vars.insert(name, config);
                 Object::default()
             }
-            Self::Call(vec) => {
-                assert!(!vec.is_empty());
-                let func = vec[0].clone().evaluate(scope);
-                // let Primitive::Function(func) = func.primitive else {
-                    // panic!("Can not call a non-function");
-                // };
-                let args = &vec[1..];
-
-                type P = Primitive;
-                match func.primitive {
-                    P::Type(ty) => {
-                        if args.len() != 1 {
-                            panic!("Can not cast more than one value at a time");
-                        }
-                        let mut vec = vec;
-                        let arg = vec.swap_remove(1);
-                        ty.cast(arg.evaluate(scope))
-                    }
-                    P::Function(Function::LangFn(fn_params, fn_body)) => {
-                        // assert!(args.len() == fn_params.len());
-                        if args.len() != fn_params.len() {
-                            panic!("Function called with incorrect number of arguments");
-                        }
-
-                        let mut fn_scope = Scope::default();
-                        for (name, val) in fn_params.into_iter().zip(vec.into_iter().skip(1)) {
-                            let config = VarData {
-                                is_const: false,
-                                is_init: true,
-                                value: Box::new(val.evaluate(scope)),
-                            };
-                            fn_scope.vars.insert(name, config);
-                        }
-                        fn_body.evaluate(&mut fn_scope)
-                    }
-                    P::Function(Function::RustFn(RustFunc { num_args, fn_ptr })) => {
-                        if num_args.is_some() && args.len() != num_args.unwrap() as usize {
-                            panic!("Function called with {} but takes {} amount of arguments", args.len(), num_args.unwrap());
-                        }
-                        let args = vec.into_iter().skip(1).map(|arg| arg.evaluate(scope));
-                        fn_ptr(args.collect())
-                    }
-                    _ => panic!("Can not call non-function: {func:?}"),
-                }
-            }
+            Self::Call(vec) => function_call(vec, scope),
             Self::Return(_) => todo!(),
         }
     }
@@ -580,4 +579,51 @@ fn assign(left: Expression, right: Expression, scope: &mut Scope) -> Object {
     var.is_init = true;
 
     Object::default()
+}
+fn function_call(vec: Vec<Expression>, scope: &mut Scope) -> Object {
+    assert!(!vec.is_empty());
+    let func = vec[0].clone().evaluate(scope);
+    let args = &vec[1..];
+
+    type P = Primitive;
+    match func.primitive.clone() {
+        P::Type(ty) => {
+            if args.len() != 1 {
+                panic!("Can not cast more than one value at a time");
+            }
+            let mut vec = vec;
+            let arg = vec.swap_remove(1);
+            ty.cast(arg.evaluate(scope))
+        }
+        P::Function(Function::LangFn(lfunc)) => {
+            let LangFunc { params, is_variadic, body } = lfunc;
+            assert!(!is_variadic);
+            if args.len() != params.len() {
+                panic!(
+                    "Function called with incorrect number of arguments({} instead of {})",
+                    args.len(),
+                    params.len()
+                );
+            }
+
+            let mut fn_scope = Scope::default();
+            fn_scope.push_const("recurs".into(), func);
+            for (name, val) in params.into_iter().zip(vec.into_iter().skip(1)) {
+                fn_scope.push_var(name, val.evaluate(scope));
+            }
+            body.evaluate(&mut fn_scope)
+        }
+        P::Function(Function::RustFn(RustFunc { num_args, fn_ptr })) => {
+            if num_args.is_some() && args.len() != num_args.unwrap() as usize {
+                panic!(
+                    "Function called with {} but takes {} amount of arguments",
+                    args.len(),
+                    num_args.unwrap()
+                );
+            }
+            let args = vec.into_iter().skip(1).map(|arg| arg.evaluate(scope));
+            fn_ptr(args.collect())
+        }
+        _ => panic!("Can not call non-function: {func:?}"),
+    }
 }

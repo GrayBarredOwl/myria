@@ -122,8 +122,8 @@ pub fn run_file(fp: &str) -> io::Result<Object> {
     run_file_with(fp, &mut Scope::default())
 }
 pub fn run_file_with(fp: &str, scope: &mut Scope) -> io::Result<Object> {
-    use std::fs;
     use crate::{lex::Lexer, parse::Parser};
+    use std::fs;
 
     let program = fs::read_to_string(fp)?;
     let tokens = Lexer::new(&program).tokenize();
