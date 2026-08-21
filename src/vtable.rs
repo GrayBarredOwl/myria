@@ -1,15 +1,6 @@
-use crate::ast::{Object, Primitive};
+use crate::obj::{Object, Primitive};
 use crate::gen::Operator;
 use core::fmt;
-
-impl Default for Object {
-    fn default() -> Self {
-        Self {
-            primitive: Primitive::Null,
-            vtable: &null_vtable::VTABLE,
-        }
-    }
-}
 
 pub type BinOpFn = fn(Primitive, Primitive) -> Object;
 pub type UnOpFn = fn(Primitive) -> Object;

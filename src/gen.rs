@@ -115,7 +115,8 @@ pub fn operators() -> &'static HashMap<&'static str, Operator> {
     })
 }
 
-use crate::ast::{Object, Scope};
+use crate::ast::Scope;
+use crate::obj::Object;
 use std::io;
 
 pub fn run_file(fp: &str) -> io::Result<Object> {

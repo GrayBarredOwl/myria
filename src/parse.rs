@@ -336,7 +336,7 @@ impl<'a> Parser<'a> {
         type TT = TokenType;
         type KW = Keyword;
         type Op = Operator;
-        use crate::ast::Object;
+        use crate::obj::Object;
 
         assert!(self.peek().info == TT::Keyword(KW::Func));
         let _func = self.consume();
@@ -458,7 +458,7 @@ impl<'a> Parser<'a> {
         vec
     }
     fn parse_str(&mut self) -> Expression {
-        use crate::ast::Object;
+        use crate::obj::Object;
         assert!(matches!(self.peek().info, TokenType::Str(_)));
 
         let TokenType::Str(ref string) = self.consume().info else {

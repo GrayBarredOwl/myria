@@ -1,4 +1,4 @@
-use crate::ast::{Object, PrimType, Primitive, RustFunc};
+use crate::obj::{Object, PrimType, Primitive, RustFunc};
 
 pub const FUNCS: &[(&str, RustFunc)] = &[
     ("print", RustFunc::new(None, print)),
@@ -10,7 +10,6 @@ pub const FUNCS: &[(&str, RustFunc)] = &[
 ];
 
 fn exit(args: Vec<Object>) -> Object {
-    use crate::ast::Primitive;
     let mut args = args;
     let ret_val = {
         if args.is_empty() {
@@ -54,7 +53,7 @@ fn nop(_args: Vec<Object>) -> Object {
 }
 
 fn import(args: Vec<Object>) -> Object {
-    use crate::ast::Primitive;
+    use crate::obj::Primitive;
     use crate::gen;
     use std::io::ErrorKind;
 

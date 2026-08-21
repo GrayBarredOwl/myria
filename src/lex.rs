@@ -1,6 +1,7 @@
 use std::sync::OnceLock;
 
-use crate::ast::{Expression, Object};
+use crate::obj::Object;
+use crate::ast::Expression;
 use crate::gen::{self, keywords, operators, Operator};
 
 #[derive(PartialEq, Debug, Clone)]

@@ -1,13 +1,13 @@
-mod ast;
 mod gen;
 mod lex;
 mod parse;
-mod stdlib;
+mod obj;
+mod ast;
 mod vtable;
+mod stdlib;
 
 use std::{env, fs, io::Write};
-
-use crate::ast::Primitive;
+use obj::Primitive;
 
 fn main() {
     let mut args = env::args();
