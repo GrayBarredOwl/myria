@@ -460,7 +460,9 @@ impl<'a> Parser<'a> {
             let parser = Parser::new(tokens);
             vec.push(parser.parse());
 
-            let _comma_closer = self.consume();
+            if self.can_peek() {
+                let _comma_closer = self.consume();
+            }
         }
         if self.can_peek() {
             if self.peek().info == TT::Operator(Op::Comma) {
@@ -482,28 +484,3 @@ impl<'a> Parser<'a> {
         Object::make_str(string).make_expr()
     }
 }
-
-/*
-Improvements:
-
-Classes,
-Parenthesis,
-Order of operations / Better parsing
-New extension and Name
-Having the left of a binary expression be compound ( [ 1 ] != [ 2 ], inline function calls )
-List indexing --
-Nested commas (like function calls in function calls, or function calls in list literals)
-Rust and/or C API
-Better import
-
-block comments,
-For each loop
-File IO
-Standard library
-Return, break, continue keyworda
-Exceptions & error handling
-Variadic function syntax
-Better error messages
-*/
-
-// 1 + 4 * 4

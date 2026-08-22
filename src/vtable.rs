@@ -201,9 +201,16 @@ pub mod bool_vtable {
 }
 
 pub mod null_vtable {
-    use super::VTable;
+    use super::*;
 
-    pub static VTABLE: VTable = VTable::all_invalid();
+    pub static VTABLE: VTable = VTable {
+        eq,  
+        ..VTable::all_invalid()
+    }; 
+
+    fn eq(x: Primitive, y: Primitive) -> Object {
+        Object::make_bool(x == Primitive::Null && y == Primitive::Null)
+    }
 }
 
 pub mod float_vtable {

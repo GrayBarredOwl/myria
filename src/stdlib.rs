@@ -44,7 +44,7 @@ fn print(args: Vec<Object>) -> Object {
         "{}",
         args.iter()
             .map(ToString::to_string)
-            .reduce(|a, val| format!("{a}, {val}"))
+            .reduce(|a, val| format!("{a} {val}"))
             .unwrap_or_default()
     );
     Object::default()
