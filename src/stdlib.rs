@@ -8,6 +8,7 @@ pub const FUNCS: &[(&str, RustFunc)] = &[
     ("import", RustFunc::new(Some(1), import)),
     ("mod", RustFunc::new(Some(2), modulus)),
     ("empty", RustFunc::new(Some(0), empty)),
+    ("str", RustFunc::new(Some(1), to_string)),
 ];
 
 fn exit(args: Vec<Object>) -> Object {
@@ -127,6 +128,11 @@ fn modulus(args: Vec<Object>) -> Object {
 fn empty(args: Vec<Object>) -> Object {
     assert!(args.len() == 0);
     Object::make_inst()
+}
+
+fn to_string(args: Vec<Object>) -> Object {
+    assert!(args.len() == 1);
+    Object::make_str(&args[0].to_string())
 }
 
 fn is_string(p: &Primitive) -> bool {

@@ -119,7 +119,7 @@ impl<'a> Parser<'a> {
         type KW = Keyword;
         type TT = TokenType;
         type Expr = Expression;
-        type Op = Operator;
+        // type Op = Operator;
 
         assert!(matches!(
             self.peek().info,
@@ -139,7 +139,6 @@ impl<'a> Parser<'a> {
                 self.peek().info
             );
         };
-        
 
         Expr::MakeVar(var_name.clone(), config, None)
     }
@@ -425,38 +424,52 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_args(&mut self) -> Vec<Expression> {
-        self.parse_collections(Operator::LParen, Operator::RParen)
+        self.parse_collection(Operator::LParen, Operator::RParen)
     }
     fn parse_list(&mut self) -> Expression {
-        let vals = self.parse_collections(Operator::LBracket, Operator::RBracket);
+        let vals = self.parse_collection(Operator::LBracket, Operator::RBracket);
         Expression::ListExpr(vals)
     }
-    fn parse_collections(&mut self, opening: Operator, closing: Operator) -> Vec<Expression> {
+    fn parse_collection(&mut self, opening: Operator, closing: Operator) -> Vec<Expression> {
         type TT = TokenType;
         type Op = Operator;
 
         assert!(self.peek().info == TT::Operator(opening));
         let _opening = self.consume();
-
         let mut vec = vec![];
-        while self.peek().info != TT::Operator(closing) {
+        while self.can_peek() && self.peek().info != TT::Operator(closing) {
             let start = self.current;
-            while self.can_peek()
-                && self.peek().info != TT::Operator(Op::Comma)
-                && self.peek().info != TT::Operator(closing)
-            {
+            let mut nest_level = 0;
+            while self.can_peek() {
+                if nest_level == 0
+                    && (self.peek().info == TT::Operator(closing)
+                        || self.peek().info == TT::Operator(Op::Comma))
+                {
+                    break;
+                }
+                if let TT::Operator(op) = self.peek().info {
+                    if op.is_opening() {
+                        nest_level += 1;
+                    } else if op.is_closing() {
+                        nest_level -= 1;
+                    }
+                }
                 self.consume();
             }
             let tokens = &self.tokens[start..self.current];
             let parser = Parser::new(tokens);
             vec.push(parser.parse());
 
+            let _comma_closer = self.consume();
+        }
+        if self.can_peek() {
             if self.peek().info == TT::Operator(Op::Comma) {
                 self.consume();
             }
+            if self.peek().info == TT::Operator(closing) {
+                self.consume();
+            }
         }
-        let _closing = self.consume();
-        dbg!(_closing);
         vec
     }
     fn parse_str(&mut self) -> Expression {
@@ -466,7 +479,7 @@ impl<'a> Parser<'a> {
         let TokenType::Str(ref string) = self.consume().info else {
             panic!();
         };
-        Object::make_list(string.chars().map(Object::make_char).collect()).make_expr()
+        Object::make_str(string).make_expr()
     }
 }
 

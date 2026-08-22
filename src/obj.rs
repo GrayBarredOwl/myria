@@ -142,12 +142,6 @@ pub struct List {
     pub ltype: Option<PrimType>,
     pub elems: Vec<Object>,
 }
-impl List {
-    fn is_string(&self) -> bool {
-        matches!(self.ltype, Some(PrimType::Char))
-    }
-}
-
 #[derive(Debug, PartialEq, Clone)]
 pub enum Function {
     RustFn(RustFunc),
@@ -172,25 +166,22 @@ impl std::fmt::Debug for Object {
 
 impl Object {
     pub fn new(primitive: Primitive) -> Self {
-        use crate::vtable::*;        
-    type P = Primitive;
-    let vtable = match primitive {
-        P::Null => &null_vtable::VTABLE,
-        P::Int(_) => &int_vtable::VTABLE,
-        P::Float(_) => &float_vtable::VTABLE,
-        P::Char(_) => &char_vtable::VTABLE,
-        P::Bool(_) => &bool_vtable::VTABLE,
-        P::Type(_) => &type_vtable::VTABLE,
-        P::List(_) => &list_vtable::VTABLE,
-        P::Function(_) => &function_vtable::VTABLE,
-        P::Instance(_) => &instance_vtable::VTABLE,
-    };
+        use crate::vtable::*;
+        type P = Primitive;
+        let vtable = match primitive {
+            P::Null => &null_vtable::VTABLE,
+            P::Int(_) => &int_vtable::VTABLE,
+            P::Float(_) => &float_vtable::VTABLE,
+            P::Char(_) => &char_vtable::VTABLE,
+            P::Bool(_) => &bool_vtable::VTABLE,
+            P::Type(_) => &type_vtable::VTABLE,
+            P::List(_) => &list_vtable::VTABLE,
+            P::Function(_) => &function_vtable::VTABLE,
+            P::Instance(_) => &instance_vtable::VTABLE,
+        };
 
-    Self {
-        primitive,
-        vtable,
+        Self { primitive, vtable }
     }
-}
     pub fn make_int(n: i64) -> Self {
         Self {
             primitive: Primitive::Int(n),
@@ -261,6 +252,15 @@ impl Object {
                     None
                 },
                 elems: vec,
+            }),
+            vtable: &vtable::list_vtable::VTABLE,
+        }
+    }
+    pub fn make_str(s: &str) -> Self {
+        Self {
+            primitive: Primitive::List(List {
+                ltype: Some(PrimType::Char),
+                elems: s.chars().map(Object::make_char).collect(),
             }),
             vtable: &vtable::list_vtable::VTABLE,
         }

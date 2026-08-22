@@ -51,6 +51,17 @@ pub enum Operator {
     LBracket,
     RBracket,
 }
+impl Operator {
+    pub fn is_opening(self) -> bool {
+        matches!(self, Self::LParen | Self::LCurly | Self::LBracket)
+    }
+    pub fn is_closing(self) -> bool {
+        matches!(self, Self::RParen | Self::RBracket | Self::RCurly)
+    }
+    // pub fn is_grouping(self) -> bool {
+    //     self.is_closing() | self.is_opening()
+    // }
+}
 
 pub fn keywords() -> &'static HashMap<&'static str, Keyword> {
     static KEYWORDS: OnceLock<HashMap<&str, Keyword>> = OnceLock::new();

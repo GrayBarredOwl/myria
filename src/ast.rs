@@ -40,7 +40,6 @@ pub enum Expression {
     BlockExpr(Vec<Expression>),
     ListExpr(Vec<Expression>),
     Call(Vec<Expression>),
-    Return(Box<Expression>),
 }
 
 impl Default for Expression {
@@ -110,7 +109,9 @@ impl Default for Scope {
 }
 impl Scope {
     pub fn empty() -> Self {
-        Self { vars: Default::default() }
+        Self {
+            vars: Default::default(),
+        }
     }
     fn push_var(&mut self, name: String, value: Object) {
         self.vars.insert(name, VarData::make_var(value));
@@ -197,14 +198,13 @@ impl Expression {
                 let Primitive::Instance(mut inst_scope) = inst.primitive else {
                     panic!("Fields can only be given to Instances");
                 };
-                if inst_scope.vars.contains_key(&name) { 
+                if inst_scope.vars.contains_key(&name) {
                     panic!("Can not create existing variable: {name}");
                 }
                 inst_scope.vars.insert(name, config);
                 Object::default()
             }
             Self::Call(vec) => function_call(vec, scope),
-            Self::Return(_) => todo!(),
         }
     }
 
@@ -263,7 +263,7 @@ fn field_access(prim: Primitive, expr: Expression, scope: &mut Scope) -> Object 
                 panic!("Field {name} does not exist on {prim:?}");
             };
             (*value.value).clone()
-        },
+        }
         _ => panic!("{prim:?} has no fields!"),
     }
 }

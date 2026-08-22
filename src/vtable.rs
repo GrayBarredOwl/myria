@@ -1,4 +1,4 @@
-use crate::ast::{Expression, Scope};
+// use crate::ast::{Expression, Scope};
 use crate::gen::Operator;
 use crate::obj::{Object, Primitive};
 use core::fmt;
@@ -53,7 +53,6 @@ fn invalid_un(_: Primitive) -> Object {
     panic!("Invalid unary operation!");
 }
 
-
 macro_rules! get_prim {
     ($var:expr, $variant:tt) => {
         match $var {
@@ -66,7 +65,6 @@ macro_rules! get_prim {
         }
     };
 }
-
 
 pub fn pick_binfunc(op: Operator, vtable: &VTable) -> BinOpFn {
     type O = Operator;
@@ -291,13 +289,14 @@ pub mod list_vtable {
     fn add(x: Primitive, y: Primitive) -> Object {
         let x = get_prim!(x, List);
         match y {
-            Primitive::List(lst) => 
-                Object::make_list(x.elems.into_iter().chain(lst.elems).collect()),
+            Primitive::List(lst) => {
+                Object::make_list(x.elems.into_iter().chain(lst.elems).collect())
+            }
             other => {
                 let mut elems = x.elems;
                 elems.push(Object::new(other));
                 Object::make_list(elems)
-            },
+            }
         }
     }
     fn eq(x: Primitive, y: Primitive) -> Object {
@@ -305,7 +304,7 @@ pub mod list_vtable {
         let y = get_prim!(y, List);
         Object::make_bool(x == y)
     }
-   
+
     pub fn index(x: List, i: Object) -> Object {
         if i.get_type() != PrimType::Int {
             panic!("Can")
@@ -314,7 +313,7 @@ pub mod list_vtable {
             Primitive::Int(val) => val,
             _ => unreachable!(),
         };
-        
+
         if i < 0 {
             panic!("Can not index with a negative number! {i}, {x:?}");
         }
