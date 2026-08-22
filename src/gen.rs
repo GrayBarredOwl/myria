@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::OnceLock};
 
-pub const EXTENSION: &str = ".mylang";
+pub const EXTENSION: &str = ".myria";
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Keyword {

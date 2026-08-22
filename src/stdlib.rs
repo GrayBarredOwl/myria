@@ -7,6 +7,7 @@ pub const FUNCS: &[(&str, RustFunc)] = &[
     ("exit", RustFunc::new(None, exit)),
     ("import", RustFunc::new(Some(1), import)),
     ("mod", RustFunc::new(Some(2), modulus)),
+    ("empty", RustFunc::new(Some(0), empty)),
 ];
 
 fn exit(args: Vec<Object>) -> Object {
@@ -53,8 +54,8 @@ fn nop(_args: Vec<Object>) -> Object {
 }
 
 fn import(args: Vec<Object>) -> Object {
-    use crate::obj::Primitive;
     use crate::gen;
+    use crate::obj::Primitive;
     use std::io::ErrorKind;
 
     let [fp] = &args[..] else {
@@ -100,7 +101,7 @@ fn modulus(args: Vec<Object>) -> Object {
         panic!("mod function takes 2 arguments, not {}", args.len());
     }
     type P = Primitive;
-    return match args[0].primitive {
+    match args[0].primitive {
         P::Int(x) => match args[1].primitive {
             P::Int(y) => Object::make_int(x % y),
             P::Float(y) => Object::make_float(x as f64 % y),
@@ -121,7 +122,11 @@ fn modulus(args: Vec<Object>) -> Object {
             "mod function only takes ints and floats, not {:?}",
             args[0].get_type()
         ),
-    };
+    }
+}
+fn empty(args: Vec<Object>) -> Object {
+    assert!(args.len() == 0);
+    Object::make_inst()
 }
 
 fn is_string(p: &Primitive) -> bool {

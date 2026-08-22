@@ -1,8 +1,8 @@
 use std::sync::OnceLock;
 
-use crate::obj::Object;
 use crate::ast::Expression;
 use crate::gen::{self, keywords, operators, Operator};
+use crate::obj::Object;
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum TokenType {
@@ -134,7 +134,7 @@ impl<'a> Lexer<'a> {
         Self {
             current: 0,
             cur_line: 1,
-            string: string,
+            string,
         }
     }
     pub fn tokenize(mut self) -> Vec<Token> {

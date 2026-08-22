@@ -1,3 +1,0 @@
-let num = import ( "test.mylang" )
-
-print ( num )

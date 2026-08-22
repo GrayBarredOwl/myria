@@ -1,8 +1,7 @@
 use crate::gen::Operator;
+use crate::obj::{Object, PrimType, Primitive};
 use crate::vtable::{pick_binfunc, pick_unfunc};
-use crate::obj::{Object, Primitive, PrimType};
 use std::collections::HashMap;
-
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct IfExpr {
@@ -29,13 +28,11 @@ pub struct BinOpExpr {
     pub right: Box<Expression>,
 }
 
-
-
 #[derive(Clone, Debug, PartialEq)]
 pub enum Expression {
     Value(Object),
     Variable(String),
-    MakeVar(String, VarData),
+    MakeVar(String, VarData, Option<Object>),
     If(IfExpr),
     Loop(LoopExpr),
     UnOp(UnOpExpr),
@@ -75,7 +72,7 @@ impl VarData {
         }
     }
 }
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Scope {
     pub vars: HashMap<String, VarData>,
 }
@@ -98,7 +95,7 @@ impl Default for Scope {
             ("Char", PT::Char),
             ("List", PT::List),
             ("Function", PT::Function),
-            ("Instance", PT::Class),
+            ("Instance", PT::Instance),
             ("Type", PT::Type),
         ];
         for (name, typ) in types {
@@ -112,6 +109,9 @@ impl Default for Scope {
     }
 }
 impl Scope {
+    pub fn empty() -> Self {
+        Self { vars: Default::default() }
+    }
     fn push_var(&mut self, name: String, value: Object) {
         self.vars.insert(name, VarData::make_var(value));
     }
@@ -164,9 +164,12 @@ impl Expression {
             Self::BinOp(binop) => {
                 if binop.op == Operator::Assign {
                     assign(*binop.left, *binop.right, scope)
+                } else if binop.op == Operator::Dot {
+                    let left_val = binop.left.evaluate(scope);
+                    field_access(left_val.primitive, *binop.right, scope)
                 } else {
-                    let left_val = (*binop.left).evaluate(scope);
-                    let right_val = (*binop.right).evaluate(scope);
+                    let left_val = binop.left.evaluate(scope);
+                    let right_val = binop.right.evaluate(scope);
                     let func = pick_binfunc(binop.op, left_val.vtable);
 
                     func(left_val.primitive, right_val.primitive)
@@ -183,11 +186,21 @@ impl Expression {
                 let l = list.into_iter().map(|e| e.evaluate(scope));
                 Object::make_list(l.collect())
             }
-            Self::MakeVar(name, config) => {
+            Self::MakeVar(name, config, None) => {
                 if scope.vars.contains_key(&name) {
                     panic!("Can not create existing variable: {name}");
                 }
                 scope.vars.insert(name, config);
+                Object::default()
+            }
+            Self::MakeVar(name, config, Some(inst)) => {
+                let Primitive::Instance(mut inst_scope) = inst.primitive else {
+                    panic!("Fields can only be given to Instances");
+                };
+                if inst_scope.vars.contains_key(&name) { 
+                    panic!("Can not create existing variable: {name}");
+                }
+                inst_scope.vars.insert(name, config);
                 Object::default()
             }
             Self::Call(vec) => function_call(vec, scope),
@@ -238,9 +251,25 @@ fn assign(left: Expression, right: Expression, scope: &mut Scope) -> Object {
 
     Object::default()
 }
+fn field_access(prim: Primitive, expr: Expression, scope: &mut Scope) -> Object {
+    type P = Primitive;
+    match prim.clone() {
+        P::List(lst) => crate::vtable::list_vtable::index(lst, expr.evaluate(scope)),
+        P::Instance(fields) => {
+            let Expression::Variable(name) = expr else {
+                panic!();
+            };
+            let Some(value) = fields.vars.get(&name) else {
+                panic!("Field {name} does not exist on {prim:?}");
+            };
+            (*value.value).clone()
+        },
+        _ => panic!("{prim:?} has no fields!"),
+    }
+}
 fn function_call(vec: Vec<Expression>, scope: &mut Scope) -> Object {
     use crate::obj::{Function, LangFunc, RustFunc};
-    
+
     assert!(!vec.is_empty());
     let func = vec[0].clone().evaluate(scope);
     let args = &vec[1..];
@@ -256,7 +285,11 @@ fn function_call(vec: Vec<Expression>, scope: &mut Scope) -> Object {
             ty.cast(arg.evaluate(scope))
         }
         P::Function(Function::LangFn(lfunc)) => {
-            let LangFunc { params, is_variadic, body } = lfunc;
+            let LangFunc {
+                params,
+                is_variadic,
+                body,
+            } = lfunc;
             assert!(!is_variadic);
             if args.len() != params.len() {
                 panic!(
@@ -274,13 +307,14 @@ fn function_call(vec: Vec<Expression>, scope: &mut Scope) -> Object {
             body.evaluate(&mut fn_scope)
         }
         P::Function(Function::RustFn(RustFunc { num_args, fn_ptr })) => {
-            if num_args.is_some() && args.len() != num_args.unwrap() as usize {
-                panic!(
+            match num_args {
+                Some(arg_count) if arg_count as usize != args.len() => panic!(
                     "Function called with {} but takes {} amount of arguments",
                     args.len(),
-                    num_args.unwrap()
-                );
-            }
+                    arg_count,
+                ),
+                _ => (),
+            };
             let args = vec.into_iter().skip(1).map(|arg| arg.evaluate(scope));
             fn_ptr(args.collect())
         }

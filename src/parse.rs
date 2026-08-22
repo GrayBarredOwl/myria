@@ -119,6 +119,7 @@ impl<'a> Parser<'a> {
         type KW = Keyword;
         type TT = TokenType;
         type Expr = Expression;
+        type Op = Operator;
 
         assert!(matches!(
             self.peek().info,
@@ -138,8 +139,9 @@ impl<'a> Parser<'a> {
                 self.peek().info
             );
         };
+        
 
-        Expr::MakeVar(var_name.clone(), config)
+        Expr::MakeVar(var_name.clone(), config, None)
     }
 
     fn parse_if(&mut self) -> Expression {
@@ -324,7 +326,7 @@ impl<'a> Parser<'a> {
             };
         }
         // if self.is_finished() {
-            // panic!("Unclosed block");
+        // panic!("Unclosed block");
         // }
         let body = &self.tokens[block_start..(self.current - 1)];
         let body_parser = Parser::new(body);
@@ -471,22 +473,24 @@ impl<'a> Parser<'a> {
 /*
 Improvements:
 
-Parenthesis,
-Order of operations,
-block comments,
-List indexing
-For each loop
-Nested commas (like function calls in function calls, or function calls in list literals)
-Having the left of a binary expression be compound ( [ 1 ] != [ 2 ], inline function calls )
-Return, break, continue keyworda,
 Classes,
-Variable scope,
-Call stack,
+Parenthesis,
+Order of operations / Better parsing
+New extension and Name
+Having the left of a binary expression be compound ( [ 1 ] != [ 2 ], inline function calls )
+List indexing --
+Nested commas (like function calls in function calls, or function calls in list literals)
 Rust and/or C API
+Better import
+
+block comments,
+For each loop
+File IO
+Standard library
+Return, break, continue keyworda
 Exceptions & error handling
 Variadic function syntax
 Better error messages
-New extension
 */
 
 // 1 + 4 * 4

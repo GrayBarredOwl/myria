@@ -1,6 +1,5 @@
+use crate::ast::{Expression, Scope};
 use crate::vtable::{self, VTable};
-use crate::ast::Expression;
-
 
 #[derive(Debug, Default, PartialEq, Clone)]
 pub enum Primitive {
@@ -14,7 +13,7 @@ pub enum Primitive {
     Type(PrimType),
     List(List),
     Function(Function),
-    Class(Vec<Primitive>),
+    Instance(Scope),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -28,7 +27,7 @@ pub enum PrimType {
     Type,
     List,
     Function,
-    Class,
+    Instance,
 }
 
 impl PrimType {
@@ -43,7 +42,7 @@ impl PrimType {
             Self::Type => Self::type_cast(obj),
             Self::List => Self::list_cast(obj),
             Self::Function => Self::func_cast(obj),
-            Self::Class => Self::class_cast(obj),
+            Self::Instance => Self::inst_cast(obj),
         }
     }
     pub fn bool_cast(obj: Object) -> Object {
@@ -74,14 +73,14 @@ impl PrimType {
                     body: _,
                 }) => params.len() as i64,
             },
-            P::Class(ref mems) => mems.len() as i64,
+            P::Instance(ref mems) => mems.vars.len() as i64,
         };
         Object::make_int(i)
     }
     pub fn float_cast(obj: Object) -> Object {
         type P = Primitive;
         let f = match obj.primitive {
-            P::Null | P::Char(_) | P::Type(_) | P::List(_) | P::Function(_) | P::Class(_) => {
+            P::Null | P::Char(_) | P::Type(_) | P::List(_) | P::Function(_) | P::Instance(_) => {
                 return Object::make_null()
             }
             P::Bool(b) => {
@@ -99,7 +98,7 @@ impl PrimType {
     pub fn char_cast(obj: Object) -> Object {
         type P = Primitive;
         let c = match obj.primitive {
-            P::Null | P::Float(_) | P::Class(_) | P::Function(_) | P::Type(_) | P::List(_) => {
+            P::Null | P::Float(_) | P::Instance(_) | P::Function(_) | P::Type(_) | P::List(_) => {
                 return Object::make_null()
             }
             P::Bool(b) => {
@@ -130,17 +129,23 @@ impl PrimType {
             _ => Object::make_null(),
         }
     }
-    pub fn class_cast(obj: Object) -> Object {
+    pub fn inst_cast(_obj: Object) -> Object {
         // type P = Primitive;
-        match obj.primitive {
-            _ => unimplemented!(),
-        }
+        unimplemented!();
+        // match obj.primitive {
+        // _ => unimplemented!(),
+        // }
     }
 }
 #[derive(Debug, PartialEq, Clone)]
 pub struct List {
     pub ltype: Option<PrimType>,
     pub elems: Vec<Object>,
+}
+impl List {
+    fn is_string(&self) -> bool {
+        matches!(self.ltype, Some(PrimType::Char))
+    }
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -166,6 +171,26 @@ impl std::fmt::Debug for Object {
 }
 
 impl Object {
+    pub fn new(primitive: Primitive) -> Self {
+        use crate::vtable::*;        
+    type P = Primitive;
+    let vtable = match primitive {
+        P::Null => &null_vtable::VTABLE,
+        P::Int(_) => &int_vtable::VTABLE,
+        P::Float(_) => &float_vtable::VTABLE,
+        P::Char(_) => &char_vtable::VTABLE,
+        P::Bool(_) => &bool_vtable::VTABLE,
+        P::Type(_) => &type_vtable::VTABLE,
+        P::List(_) => &list_vtable::VTABLE,
+        P::Function(_) => &function_vtable::VTABLE,
+        P::Instance(_) => &instance_vtable::VTABLE,
+    };
+
+    Self {
+        primitive,
+        vtable,
+    }
+}
     pub fn make_int(n: i64) -> Self {
         Self {
             primitive: Primitive::Int(n),
@@ -246,6 +271,12 @@ impl Object {
             vtable: &vtable::type_vtable::VTABLE,
         }
     }
+    pub fn make_inst() -> Self {
+        Self {
+            primitive: Primitive::Instance(Scope::empty()),
+            vtable: &vtable::instance_vtable::VTABLE,
+        }
+    }
     pub fn make_expr(self) -> Expression {
         Expression::Value(self)
     }
@@ -262,7 +293,7 @@ impl Object {
 
             P::List(_) => PT::List,
             P::Function(_) => PT::Function,
-            P::Class(_) => PT::Class,
+            P::Instance(_) => PT::Instance,
         }
     }
 }
@@ -284,7 +315,13 @@ impl std::fmt::Display for Object {
                 P::Float(v) => v.to_string(),
                 P::Bool(v) => v.to_string(),
                 P::Char(v) => v.to_string(),
-                P::Class(_) => String::from("Class"),
+                P::Instance(Scope { ref vars }) => format!(
+                    "{{{}}}",
+                    vars.iter()
+                        .map(|kv| format!("{}:{}", kv.0, kv.1.value))
+                        .reduce(|a, kv| format!("{a}, {kv}"))
+                        .unwrap_or_default()
+                ),
                 P::Type(v) => format!("{v:?}"),
                 P::Function(_) => String::from("Function"),
                 P::Null => String::from("Null"),
@@ -325,11 +362,10 @@ impl Primitive {
             Self::Type(_) => true,
             Self::List(List { ltype: _, elems }) => !elems.is_empty(),
             Self::Function(_) => true,
-            Self::Class(_) => true,
+            Self::Instance(_) => true,
         }
     }
 }
-
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[allow(unpredictable_function_pointer_comparisons)]
@@ -350,6 +386,10 @@ pub struct LangFunc {
 }
 impl LangFunc {
     fn new(params: Vec<String>, is_variadic: bool, body: Box<Expression>) -> Self {
-        Self { params, is_variadic, body }
+        Self {
+            params,
+            is_variadic,
+            body,
+        }
     }
 }

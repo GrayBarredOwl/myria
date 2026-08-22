@@ -1,10 +1,10 @@
-use crate::obj::{Object, Primitive};
+use crate::ast::{Expression, Scope};
 use crate::gen::Operator;
+use crate::obj::{Object, Primitive};
 use core::fmt;
 
 pub type BinOpFn = fn(Primitive, Primitive) -> Object;
 pub type UnOpFn = fn(Primitive) -> Object;
-
 #[derive(Clone)]
 pub struct VTable {
     pub add: BinOpFn,
@@ -47,11 +47,12 @@ impl fmt::Debug for VTable {
 }
 
 fn invalid_bn(_: Primitive, _: Primitive) -> Object {
-    panic!("Invalid operation!");
+    panic!("Invalid binary operation!");
 }
 fn invalid_un(_: Primitive) -> Object {
-    panic!("Invalid operation!");
+    panic!("Invalid unary operation!");
 }
+
 
 macro_rules! get_prim {
     ($var:expr, $variant:tt) => {
@@ -66,25 +67,6 @@ macro_rules! get_prim {
     };
 }
 
-pub fn wrap_prim(prim: Primitive) -> Object {
-    type P = Primitive;
-    let vtable = match prim {
-        P::Null => &null_vtable::VTABLE,
-        P::Int(_) => &int_vtable::VTABLE,
-        P::Float(_) => &float_vtable::VTABLE,
-        P::Char(_) => &char_vtable::VTABLE,
-        P::Bool(_) => &bool_vtable::VTABLE,
-        P::Type(_) => &type_vtable::VTABLE,
-        P::List(_) => &list_vtable::VTABLE,
-        P::Function(_) => &function_vtable::VTABLE,
-        P::Class(_) => &class_vtable::VTABLE,
-    };
-
-    Object {
-        primitive: prim,
-        vtable,
-    }
-}
 
 pub fn pick_binfunc(op: Operator, vtable: &VTable) -> BinOpFn {
     type O = Operator;
@@ -117,7 +99,7 @@ macro_rules! make_logic_op {
         fn $name(x: Primitive, y: Primitive) -> Object {
             let x = get_prim!(x, $ty);
             let y = get_prim!(y, $ty);
-            wrap_prim(Primitive::Bool(x $op y))
+            Object::make_bool(x $op y)
         }
     };
 }
@@ -130,13 +112,12 @@ pub mod int_vtable {
         ($name:ident, $op:tt) => {
             fn $name(x: Primitive, y: Primitive) -> Object {
                 let x = get_prim!(x, Int);
-                let result = match y {
-                    P::Bool(val) => P::Int(x $op val as i64),
-                    P::Int(val) => P::Int(x $op val),
-                    P::Float(val) => P::Float(x as f64 $op val),
+                match y {
+                    P::Bool(val) => Object::make_int(x $op val as i64),
+                    P::Int(val) => Object::make_int(x $op val),
+                    P::Float(val) => Object::make_float(x as f64 $op val),
                     _ => panic!("Invalid operation"),
-                };
-                wrap_prim(result)
+                }
             }
         };
     }
@@ -164,7 +145,7 @@ pub mod int_vtable {
         let Primitive::Int(val) = int else {
             panic!("Int vtable negate called without an int: {int:?}");
         };
-        wrap_prim(Primitive::Int(-val))
+        Object::make_int(-val)
     }
 }
 
@@ -176,13 +157,12 @@ pub mod bool_vtable {
         ($name:ident, $op:tt) => {
             fn $name(x: Primitive, y: Primitive) -> Object {
                 let x = get_prim!(x, Bool);
-                let result = match y {
-                    P::Bool(val) => P::Bool((x as i32 $op val as i32) != 0),
-                    P::Int(val) => P::Int(x as i64 $op val),
-                    P::Float(val) => P::Float(x as i32 as f64 $op val),
+                match y {
+                    P::Bool(val) => Object::make_bool((x as i32 $op val as i32) != 0),
+                    P::Int(val) => Object::make_int(x as i64 $op val),
+                    P::Float(val) => Object::make_float(x as i32 as f64 $op val),
                     _ => panic!("Invalid operation"),
-                };
-                wrap_prim(result)
+                }
             }
         };
     }
@@ -242,7 +222,7 @@ pub mod float_vtable {
                     P::Float(val) => x $op val,
                     _ => panic!("Invalid operation"),
                 };
-                wrap_prim(Primitive::Float(result))
+                Object::make_float(result)
             }
         };
     }
@@ -275,12 +255,12 @@ pub mod float_vtable {
             P::Float(val) => (val - x).abs() < epsilon,
             _ => panic!("Invalid!"),
         };
-        wrap_prim(Primitive::Bool(result))
+        Object::make_bool(result)
     }
 
     fn negt(x: Primitive) -> Object {
         let x = get_prim!(x, Float);
-        wrap_prim(Primitive::Float(-x))
+        Object::make_float(-x)
     }
 }
 
@@ -298,6 +278,8 @@ pub mod char_vtable {
 }
 
 pub mod list_vtable {
+    use crate::obj::{List, PrimType};
+
     use super::*;
 
     pub static VTABLE: VTable = VTable {
@@ -308,13 +290,39 @@ pub mod list_vtable {
 
     fn add(x: Primitive, y: Primitive) -> Object {
         let x = get_prim!(x, List);
-        let y = get_prim!(y, List);
-        Object::make_list(x.elems.into_iter().chain(y.elems).collect())
+        match y {
+            Primitive::List(lst) => 
+                Object::make_list(x.elems.into_iter().chain(lst.elems).collect()),
+            other => {
+                let mut elems = x.elems;
+                elems.push(Object::new(other));
+                Object::make_list(elems)
+            },
+        }
     }
     fn eq(x: Primitive, y: Primitive) -> Object {
         let x = get_prim!(x, List);
         let y = get_prim!(y, List);
-        wrap_prim(Primitive::Bool(x == y))
+        Object::make_bool(x == y)
+    }
+   
+    pub fn index(x: List, i: Object) -> Object {
+        if i.get_type() != PrimType::Int {
+            panic!("Can")
+        }
+        let i = match i.primitive {
+            Primitive::Int(val) => val,
+            _ => unreachable!(),
+        };
+        
+        if i < 0 {
+            panic!("Can not index with a negative number! {i}, {x:?}");
+        }
+        let i = i as usize;
+        if i >= x.elems.len() {
+            panic!("Index out of bounds! {i}, {}", Object::make_list(x.elems));
+        }
+        x.elems[i].clone()
     }
 }
 
@@ -324,7 +332,7 @@ pub mod function_vtable {
     pub static VTABLE: VTable = VTable::all_invalid();
 }
 
-pub mod class_vtable {
+pub mod instance_vtable {
     use super::*;
 
     pub static VTABLE: VTable = VTable::all_invalid();
