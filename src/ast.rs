@@ -52,7 +52,7 @@ impl Default for Expression {
 pub struct VarData {
     pub is_const: bool,
     pub is_init: bool,
-    pub value: Box<Object>,
+    pub value: Object,
 }
 
 impl VarData {
@@ -60,14 +60,26 @@ impl VarData {
         Self {
             is_const: true,
             is_init: true,
-            value: Box::new(value),
+            value: value,
         }
     }
     fn make_var(value: Object) -> Self {
         Self {
             is_const: false,
             is_init: true,
-            value: Box::new(value),
+            value: value,
+        }
+    }
+    fn can_modify(&self) -> bool {
+        !self.is_const || !self.is_init
+    }
+    fn set(&mut self, value: Object) -> Result<(), ()> {
+        if !self.can_modify() {
+            Err(())
+        } else {
+            self.value = value;
+            self.is_init = true;
+            Ok(())
         }
     }
 }
@@ -119,6 +131,82 @@ impl Scope {
     fn push_const(&mut self, name: String, value: Object) {
         self.vars.insert(name, VarData::make_constant(value));
     }
+    fn get(&self, name: &str) -> VarData {
+        dbg!(name);
+        if !name.contains('.') {
+            self.get_once(name)
+        } else {
+            let Some((base, rest)) = name.split_once('.') else {
+                unreachable!();
+            };
+            let base_var = self.get_once(base);
+            let Primitive::Instance(fields) = base_var.value.primitive else {
+                panic!("Can not get fields of non-Instance");
+            };
+            fields.get(rest)
+        }
+    }
+    fn get_once(&self, name: &str) -> VarData {
+        match self.vars.get(name) {
+            Some(var) => var.clone(),
+            None => panic!("Undeclared variable: {name}"),
+        }
+    }
+    fn get_once_mut(&mut self, name: &str) -> &mut VarData {
+        self.vars.get_mut(name).expect("Undeclared variable")
+    }
+    fn var_exists(&self, name: &str) -> bool {
+        println!("Var_exists: {name}");
+        if !name.contains('.') {
+            self.vars.get(name).is_some()
+        } else {
+            let Some((base, rest)) = name.split_once('.') else {
+                unreachable!();
+            };
+            let base_var = self.get_once(base);
+            let Primitive::Instance(fields) = base_var.value.primitive else {
+                panic!("Can not get fields of non-Instance");
+            };
+            fields.var_exists(rest)
+        }
+    }
+    fn set(&mut self, name: &str, value: Object) {
+        if !name.contains('.') {
+            self.set_once(name, value);
+        } else {
+            let Some((base, rest)) = name.split_once('.') else {
+                unreachable!();
+            };
+            let base_var = self.get_once_mut(base);
+            let Primitive::Instance(ref mut fields) = base_var.value.primitive else {
+                panic!("Can not set fields of non-Instance");
+            };
+            fields.set(rest, value);
+        }
+    }
+    fn set_once(&mut self, name: &str, value: Object) {
+        let config = self.vars.get_mut(name).expect("Variable {name} does not exist");
+        if !config.can_modify() {
+            panic!("Can not modify {name}: {config:?}");
+        }
+        config.set(value).unwrap();
+    }
+    fn create_with_config(&mut self, name: &str, config: VarData) {
+        if !name.contains('.') {
+            self.vars.insert(name.into(), config);
+        } else {
+            let Some((base, rest)) = name.split_once('.') else {
+                unreachable!();
+            };
+            let base_var = self.get_once_mut(base);
+            let Primitive::Instance(ref mut fields) = base_var.value.primitive else {
+                panic!("Can not create field on non-Instance");
+            };
+            dbg!(rest, &config);
+            fields.create_with_config(rest, config);
+            dbg!(&fields);
+        }
+    }
 }
 
 impl Expression {
@@ -129,16 +217,14 @@ impl Expression {
         match self {
             Self::Value(data) => data,
             Self::Variable(name) => {
-                let varinfo = scope.vars.entry(name.clone()).or_default();
+                let varinfo = scope.get(&name);
                 if !varinfo.is_init {
                     panic!("Reading uninitialized variable: {name}");
                 }
-                (*varinfo.value).clone()
+                varinfo.value
             }
             Self::If(if_obj) => {
                 let should_execute = if_obj.condition.evaluate(scope);
-
-                // Add bool conversion logic later
 
                 if should_execute.primitive.is_truthy() {
                     if_obj.to_resolve.evaluate(scope)
@@ -188,21 +274,25 @@ impl Expression {
                 Object::make_list(l.collect())
             }
             Self::MakeVar(name, config, None) => {
-                if scope.vars.contains_key(&name) {
+                if scope.var_exists(&name) {
                     panic!("Can not create existing variable: {name}");
                 }
-                scope.vars.insert(name, config);
+                // scope.create_var(name, value);
+                scope.create_with_config(&name, config);
+                // scope.vars.insert(name, config);
                 Object::default()
             }
-            Self::MakeVar(name, config, Some(inst)) => {
-                let Primitive::Instance(mut inst_scope) = inst.primitive else {
-                    panic!("Fields can only be given to Instances");
-                };
-                if inst_scope.vars.contains_key(&name) {
-                    panic!("Can not create existing variable: {name}");
-                }
-                inst_scope.vars.insert(name, config);
-                Object::default()
+            Self::MakeVar(_name, _config, Some(_inst)) => {
+                println!("HEREEREREr");
+                panic!();
+                // let Primitive::Instance(mut inst_scope) = inst.primitive else {
+                //     panic!("Fields can only be given to Instances");
+                // };
+                // if inst_scope.var_exists(&name) {
+                //     panic!("Can not create existing variable: {name}");
+                // }
+                // inst_scope.vars.insert(name, config);
+                // Object::default()
             }
             Self::Call(vec) => function_call(vec, scope),
         }
@@ -234,35 +324,38 @@ impl Expression {
 }
 
 fn assign(left: Expression, right: Expression, scope: &mut Scope) -> Object {
-    let value = Box::new(right.evaluate(scope));
-
+    let value = right.evaluate(scope);
     let Expression::Variable(name) = left else {
         panic!("Attempt to assign to non-variable");
     };
-    let Some(var) = scope.vars.get_mut(&name) else {
+    if !scope.var_exists(&name) {
         panic!("Variable not created: {name}");
-    };
-    if var.is_const && var.is_init {
-        panic!("Constant({name}) can not be overriden with ({value:?})");
     }
-
-    var.value = value;
-    var.is_init = true;
+    dbg!(&name, &value);
+    scope.set(&name, value);
+    // let var = scope.get_mut(&name);
+    // if !var.can_modify() {
+    //     panic!("Constant({name}) can not be overriden with ({value:?})");
+    // }
+    // var.set(value).unwrap();
 
     Object::default()
 }
 fn field_access(prim: Primitive, expr: Expression, scope: &mut Scope) -> Object {
+    use crate::vtable::list_vtable;
     type P = Primitive;
     match prim.clone() {
-        P::List(lst) => crate::vtable::list_vtable::index(lst, expr.evaluate(scope)),
-        P::Instance(fields) => {
-            let Expression::Variable(name) = expr else {
-                panic!();
-            };
-            let Some(value) = fields.vars.get(&name) else {
-                panic!("Field {name} does not exist on {prim:?}");
-            };
-            (*value.value).clone()
+        P::List(lst) => list_vtable::index(lst, expr.evaluate(scope)),
+        P::Instance(_fields) => {
+            todo!();
+            // let Expression::Variable(name) = expr else {
+                // panic!();
+            // };
+            // let Some(value) = fields.vars.get(&name) else {
+                // panic!("Field {name} does not exist on {prim:?}");
+            // };
+            // (*value.value).clone()
+            // Object::default()
         }
         _ => panic!("{prim:?} has no fields!"),
     }

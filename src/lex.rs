@@ -295,7 +295,7 @@ impl<'a> Lexer<'a> {
         self.consume();
         while self.can_peek() {
             let c = self.consume();
-            if c.is_alphanumeric() || c == '_' {
+            if c.is_alphanumeric() || c == '_' || c == '.' {
             } else {
                 self.unconsume();
                 break;

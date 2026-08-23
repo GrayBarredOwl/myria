@@ -76,3 +76,16 @@ fn repl() {
         // }
     }
 }
+
+fn test() -> ! {
+    use lex::Lexer;
+    use parse::Parser;
+    let program = format!("{}\n{}", "var a = empty()", "var a.x = true");
+    let lex = Lexer::new(&program);
+    let tokens = lex.tokenize();
+    let parser = Parser::new(&tokens);
+    let expr = parser.parse();
+
+    expr.resolve();
+    std::process::exit(0);
+}
