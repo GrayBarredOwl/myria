@@ -1,4 +1,4 @@
-Classes,
+Classes: syntax sugar on keyword, pass self to methods, inheritance,
 Order of operations / Better parsing
 ~~New extension and Name~~
 Having the left of a binary expression be compound ( [ 1 ] != [ 2 ], inline function calls )

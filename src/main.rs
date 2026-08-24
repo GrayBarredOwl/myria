@@ -30,7 +30,7 @@ fn main() {
     dbg!(&ex);
 
     let result = ex.resolve();
-    println!("Result: {result:?}");
+    println!("Result: {result}");
 }
 
 fn repl() {

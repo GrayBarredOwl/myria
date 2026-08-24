@@ -1,0 +1,7 @@
+let Point = class(x, y) {
+    var self.x = x
+    var self.y = y
+}
+
+let p = Point(1, 2)
+print(p)

@@ -204,9 +204,9 @@ pub mod null_vtable {
     use super::*;
 
     pub static VTABLE: VTable = VTable {
-        eq,  
+        eq,
         ..VTable::all_invalid()
-    }; 
+    };
 
     fn eq(x: Primitive, y: Primitive) -> Object {
         Object::make_bool(x == Primitive::Null && y == Primitive::Null)

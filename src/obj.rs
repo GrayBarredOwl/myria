@@ -318,13 +318,25 @@ impl std::fmt::Display for Object {
                 P::Instance(Scope { ref vars }) => format!(
                     "{{{}}}",
                     vars.iter()
-                        .map(|kv| format!("{}:{}", kv.0, kv.1.value))
+                        .map(|(k, v)| format!("{}:{}", k, v.value))
                         .reduce(|a, kv| format!("{a}, {kv}"))
                         .unwrap_or_default()
                 ),
                 P::Type(v) => format!("{v:?}"),
-                P::Function(_) => String::from("Function"),
-                P::Null => String::from("Null"),
+                P::Function(Function::LangFn(LangFunc { ref params, .. })) => format!(
+                    "func({})",
+                    params
+                        .iter()
+                        .map(ToString::to_string)
+                        .reduce(|a, p| format!("{a}, {p}"))
+                        .unwrap_or_default()
+                ),
+                P::Function(Function::RustFn(RustFunc { num_args, .. })) => format!(
+                    "func({})",
+                    num_args.map(|n| n.to_string()).unwrap_or("*".into())
+                ),
+
+                P::Null => String::from("null"),
                 P::List(List {
                     ltype: Some(PrimType::Char),
                     ref elems,

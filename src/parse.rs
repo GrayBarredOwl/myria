@@ -63,7 +63,7 @@ impl<'a> Parser<'a> {
             cur_expr.push(self.parse_list());
         } else if matches!(next_token, TT::Str(_)) {
             cur_expr.push(self.parse_str());
-        } else if matches!(next_token, TT::Keyword(KW::Func)) {
+        } else if matches!(next_token, TT::Keyword(KW::Func) | TT::Keyword(KW::Class)) {
             cur_expr.push(self.parse_func());
         } else if matches!(next_token, TT::Keyword(KW::Call)) {
             cur_expr.push(self.parse_fn_call());
@@ -339,8 +339,11 @@ impl<'a> Parser<'a> {
         type Op = Operator;
         use crate::obj::Object;
 
-        assert!(self.peek().info == TT::Keyword(KW::Func));
-        let _func = self.consume();
+        assert!(matches!(
+            self.peek().info,
+            TT::Keyword(KW::Func) | TT::Keyword(KW::Class)
+        ));
+        let is_class = self.consume().info == TT::Keyword(KW::Class);
 
         assert!(self.peek().info == TT::Operator(Op::LParen));
         let _lparen = self.consume();
@@ -388,7 +391,18 @@ impl<'a> Parser<'a> {
             }
         }
         let _rparen = self.consume();
-        let body = self.parse_block();
+        let mut body = self.parse_block();
+        if is_class {
+            let mut prefix = Expression::MakeVar(
+                "self".into(),
+                VarData::make_var(Object::make_inst()),
+                None,
+            );
+
+            prefix.push(body);
+            prefix.push(Expression::Variable("self".into()));
+            body = prefix;
+        }
 
         Object::make_func(params, false, Box::new(body)).make_expr()
     }
@@ -460,8 +474,8 @@ impl<'a> Parser<'a> {
             let parser = Parser::new(tokens);
             vec.push(parser.parse());
 
-            if self.can_peek() {
-                let _comma_closer = self.consume();
+            if self.can_peek() && self.peek().info == TT::Operator(Op::Comma){
+                let _comma= self.consume();
             }
         }
         if self.can_peek() {

@@ -56,14 +56,14 @@ pub struct VarData {
 }
 
 impl VarData {
-    fn make_constant(value: Object) -> Self {
+    pub fn make_constant(value: Object) -> Self {
         Self {
             is_const: true,
             is_init: true,
             value: value,
         }
     }
-    fn make_var(value: Object) -> Self {
+    pub fn make_var(value: Object) -> Self {
         Self {
             is_const: false,
             is_init: true,
@@ -132,7 +132,7 @@ impl Scope {
         self.vars.insert(name, VarData::make_constant(value));
     }
     fn get(&self, name: &str) -> VarData {
-        dbg!(name);
+        // dbg!(name);
         if !name.contains('.') {
             self.get_once(name)
         } else {
@@ -156,7 +156,6 @@ impl Scope {
         self.vars.get_mut(name).expect("Undeclared variable")
     }
     fn var_exists(&self, name: &str) -> bool {
-        println!("Var_exists: {name}");
         if !name.contains('.') {
             self.vars.get(name).is_some()
         } else {
@@ -185,7 +184,10 @@ impl Scope {
         }
     }
     fn set_once(&mut self, name: &str, value: Object) {
-        let config = self.vars.get_mut(name).expect("Variable {name} does not exist");
+        let config = self
+            .vars
+            .get_mut(name)
+            .expect("Variable {name} does not exist");
         if !config.can_modify() {
             panic!("Can not modify {name}: {config:?}");
         }
@@ -202,9 +204,9 @@ impl Scope {
             let Primitive::Instance(ref mut fields) = base_var.value.primitive else {
                 panic!("Can not create field on non-Instance");
             };
-            dbg!(rest, &config);
+            // dbg!(rest, &config);
             fields.create_with_config(rest, config);
-            dbg!(&fields);
+            // dbg!(&fields);
         }
     }
 }
@@ -300,11 +302,13 @@ impl Expression {
 
     pub fn push(&mut self, new_expr: Self) {
         match self {
-            Self::Value(Object {
-                primitive: Primitive::Null,
-                vtable: _,
-            }) => *self = new_expr,
-            Self::BlockExpr(exprs) => exprs.push(new_expr),
+            Self::Value(Object { primitive: Primitive::Null, .. }) => *self = new_expr,
+            Self::BlockExpr(exprs) => {
+                match new_expr {
+                    Self::BlockExpr(other_block) => exprs.extend(other_block.into_iter()),
+                    other_expr => exprs.push(other_expr),
+                }
+            }
             _ => {
                 let exprs = vec![self.clone(), new_expr];
                 *self = Expression::BlockExpr(exprs);
@@ -331,7 +335,7 @@ fn assign(left: Expression, right: Expression, scope: &mut Scope) -> Object {
     if !scope.var_exists(&name) {
         panic!("Variable not created: {name}");
     }
-    dbg!(&name, &value);
+    // dbg!(&name, &value);
     scope.set(&name, value);
     // let var = scope.get_mut(&name);
     // if !var.can_modify() {
@@ -349,10 +353,10 @@ fn field_access(prim: Primitive, expr: Expression, scope: &mut Scope) -> Object 
         P::Instance(_fields) => {
             todo!();
             // let Expression::Variable(name) = expr else {
-                // panic!();
+            // panic!();
             // };
             // let Some(value) = fields.vars.get(&name) else {
-                // panic!("Field {name} does not exist on {prim:?}");
+            // panic!("Field {name} does not exist on {prim:?}");
             // };
             // (*value.value).clone()
             // Object::default()
@@ -386,9 +390,10 @@ fn function_call(vec: Vec<Expression>, scope: &mut Scope) -> Object {
             assert!(!is_variadic);
             if args.len() != params.len() {
                 panic!(
-                    "Function called with incorrect number of arguments({} instead of {})",
+                    "Function called with incorrect number of arguments({} instead of {}): {:?}",
                     args.len(),
-                    params.len()
+                    params.len(),
+                    args,
                 );
             }
 
