@@ -1,10 +1,11 @@
 // use crate::ast::{Expression, Scope};
 use crate::gen::Operator;
 use crate::obj::{Object, Primitive};
+use crate::ast::MyriaErr;
 use core::fmt;
 
-pub type BinOpFn = fn(Primitive, Primitive) -> Object;
-pub type UnOpFn = fn(Primitive) -> Object;
+pub type BinOpFn = fn(Primitive, Primitive) -> Result<Object, MyriaErr>;
+pub type UnOpFn = fn(Primitive) -> Result<Object, MyriaErr>;
 #[derive(Clone)]
 pub struct VTable {
     pub add: BinOpFn,
@@ -46,22 +47,21 @@ impl fmt::Debug for VTable {
     }
 }
 
-fn invalid_bn(_: Primitive, _: Primitive) -> Object {
-    panic!("Invalid binary operation!");
+fn invalid_bn(_: Primitive, _: Primitive) -> Result<Object, MyriaErr> {
+    Err(MyriaErr::InvalidOperation("Invalid binary operation!".into()))
 }
-fn invalid_un(_: Primitive) -> Object {
-    panic!("Invalid unary operation!");
+fn invalid_un(_: Primitive) -> Result<Object, MyriaErr> {
+    Err(MyriaErr::InvalidOperation("Invalid unary operation".into()))
 }
 
 macro_rules! get_prim {
     ($var:expr, $variant:tt) => {
         match $var {
-            Primitive::$variant(val) => val,
-            _ => panic!(
-                "{} vtable called without {} as arg",
+            Primitive::$variant(val) => Ok(val),
+            _ => Err(MyriaErr::InvalidOperation(format!("{} vtable called without {} as arg",
                 stringify!($variant),
                 stringify!($variant)
-            ),
+            ))),
         }
     };
 }
@@ -94,10 +94,10 @@ pub fn pick_unfunc(op: Operator, vtable: &VTable) -> UnOpFn {
 
 macro_rules! make_logic_op {
     ($ty:tt, $name:ident, $op:tt) => {
-        fn $name(x: Primitive, y: Primitive) -> Object {
-            let x = get_prim!(x, $ty);
-            let y = get_prim!(y, $ty);
-            Object::make_bool(x $op y)
+        fn $name(x: Primitive, y: Primitive) -> Result<Object, MyriaErr> {
+            let x = get_prim!(x, $ty)?;
+            let y = get_prim!(y, $ty)?;
+            Ok(Object::make_bool(x $op y))
         }
     };
 }
@@ -108,13 +108,13 @@ pub mod int_vtable {
 
     macro_rules! make_arith_op {
         ($name:ident, $op:tt) => {
-            fn $name(x: Primitive, y: Primitive) -> Object {
-                let x = get_prim!(x, Int);
+            fn $name(x: Primitive, y: Primitive) -> Result<Object, MyriaErr> {
+                let x = get_prim!(x, Int)?;
                 match y {
-                    P::Bool(val) => Object::make_int(x $op val as i64),
-                    P::Int(val) => Object::make_int(x $op val),
-                    P::Float(val) => Object::make_float(x as f64 $op val),
-                    _ => panic!("Invalid operation"),
+                    P::Bool(val) => Ok(Object::make_int(x $op val as i64)),
+                    P::Int(val) => Ok(Object::make_int(x $op val)),
+                    P::Float(val) => Ok(Object::make_float(x as f64 $op val)),
+                    _ => Err(MyriaErr::InvalidOperation("Invalid operation".into())),
                 }
             }
         };
@@ -134,16 +134,25 @@ pub mod int_vtable {
 
     make_arith_op!(add, +);
     make_arith_op!(mul, *);
-    make_arith_op!(div, /);
 
     make_logic_op!(Int, eq, ==);
     make_logic_op!(Int, lt, <);
 
-    fn negt(int: Primitive) -> Object {
+    fn div(x: Primitive, y: Primitive) -> Result<Object, MyriaErr> {
+        let x = get_prim!(x, Int)?;
+        match y {
+            P::Bool(false) | P::Int(0)=> Err(MyriaErr::ZeroDivision),
+            P::Bool(true) => Ok(Object::make_int(x)),
+            P::Int(val) => Ok(Object::make_int(x / val)),
+            P::Float(val) => Ok(Object::make_float(x as f64 / val)),
+            _ => Err(MyriaErr::InvalidOperation("Invalid operation".into())),
+        }
+    }
+    fn negt(int: Primitive) -> Result<Object, MyriaErr> {
         let Primitive::Int(val) = int else {
             panic!("Int vtable negate called without an int: {int:?}");
         };
-        Object::make_int(-val)
+        Ok(Object::make_int(-val))
     }
 }
 
@@ -153,13 +162,13 @@ pub mod bool_vtable {
 
     macro_rules! make_arith_op {
         ($name:ident, $op:tt) => {
-            fn $name(x: Primitive, y: Primitive) -> Object {
-                let x = get_prim!(x, Bool);
+            fn $name(x: Primitive, y: Primitive) -> Result<Object, MyriaErr> {
+                let x = get_prim!(x, Bool)?;
                 match y {
-                    P::Bool(val) => Object::make_bool((x as i32 $op val as i32) != 0),
-                    P::Int(val) => Object::make_int(x as i64 $op val),
-                    P::Float(val) => Object::make_float(x as i32 as f64 $op val),
-                    _ => panic!("Invalid operation"),
+                    P::Bool(val) => Ok(Object::make_bool((x as i32 $op val as i32) != 0)),
+                    P::Int(val) => Ok(Object::make_int(x as i64 $op val)),
+                    P::Float(val) => Ok(Object::make_float(x as i32 as f64 $op val)),
+                    _ => Err(MyriaErr::InvalidOperation("Invalid operation".into())),
                 }
             }
         };
@@ -184,19 +193,19 @@ pub mod bool_vtable {
     make_logic_op!(Bool, eq, ==);
     make_logic_op!(Bool, lt, < );
 
-    fn and(x: Primitive, y: Primitive) -> Object {
-        let x = get_prim!(x, Bool);
-        let y = get_prim!(y, Bool);
-        Object::make_bool(x && y)
+    fn and(x: Primitive, y: Primitive) -> Result<Object, MyriaErr> {
+        let x = get_prim!(x, Bool)?;
+        let y = get_prim!(y, Bool)?;
+        Ok(Object::make_bool(x && y))
     }
-    fn or(x: Primitive, y: Primitive) -> Object {
-        let x = get_prim!(x, Bool);
-        let y = get_prim!(y, Bool);
-        Object::make_bool(x || y)
+    fn or(x: Primitive, y: Primitive) -> Result<Object, MyriaErr> {
+        let x = get_prim!(x, Bool)?;
+        let y = get_prim!(y, Bool)?;
+        Ok(Object::make_bool(x || y))
     }
-    fn not(x: Primitive) -> Object {
-        let x = get_prim!(x, Bool);
-        Object::make_bool(!x)
+    fn not(x: Primitive) -> Result<Object, MyriaErr> {
+        let x = get_prim!(x, Bool)?;
+        Ok(Object::make_bool(!x))
     }
 }
 
@@ -208,8 +217,8 @@ pub mod null_vtable {
         ..VTable::all_invalid()
     };
 
-    fn eq(x: Primitive, y: Primitive) -> Object {
-        Object::make_bool(x == Primitive::Null && y == Primitive::Null)
+    fn eq(x: Primitive, y: Primitive) -> Result<Object, MyriaErr> {
+        Ok(Object::make_bool(x == Primitive::Null && y == Primitive::Null))
     }
 }
 
@@ -219,15 +228,15 @@ pub mod float_vtable {
 
     macro_rules! make_arith_op {
         ($name:ident, $op:tt) => {
-            fn $name(x: Primitive, y: Primitive) -> Object {
-                let x = get_prim!(x, Float);
+            fn $name(x: Primitive, y: Primitive) -> Result<Object, MyriaErr> {
+                let x = get_prim!(x, Float)?;
                 let result = match y {
                     P::Bool(val) => x $op val as i32 as f64,
                     P::Int(val) => x $op val as f64,
                     P::Float(val) => x $op val,
-                    _ => panic!("Invalid operation"),
+                    _ => return Err(MyriaErr::InvalidOperation(("Invalid operation".into()))),
                 };
-                Object::make_float(result)
+                Ok(Object::make_float(result))
             }
         };
     }
@@ -250,22 +259,22 @@ pub mod float_vtable {
 
     make_logic_op!(Float, lt, < );
 
-    fn eq(x: Primitive, y: Primitive) -> Object {
+    fn eq(x: Primitive, y: Primitive) -> Result<Object, MyriaErr> {
         let epsilon = 1e-6;
 
-        let x = get_prim!(x, Float);
+        let x = get_prim!(x, Float)?;
         let result = match y {
             P::Bool(val) => ((val as i32 as f64) - x).abs() < epsilon,
             P::Int(val) => (val as f64 - x).abs() < epsilon,
             P::Float(val) => (val - x).abs() < epsilon,
             _ => panic!("Invalid!"),
         };
-        Object::make_bool(result)
+        Ok(Object::make_bool(result))
     }
 
-    fn negt(x: Primitive) -> Object {
-        let x = get_prim!(x, Float);
-        Object::make_float(-x)
+    fn negt(x: Primitive) -> Result<Object, MyriaErr> {
+        let x = get_prim!(x, Float)?;
+        Ok(Object::make_float(-x))
     }
 }
 
@@ -293,9 +302,9 @@ pub mod list_vtable {
         ..VTable::all_invalid()
     };
 
-    fn add(x: Primitive, y: Primitive) -> Object {
-        let x = get_prim!(x, List);
-        match y {
+    fn add(x: Primitive, y: Primitive) -> Result<Object, MyriaErr> {
+        let x = get_prim!(x, List)?;
+        Ok(match y {
             Primitive::List(lst) => {
                 Object::make_list(x.elems.into_iter().chain(lst.elems).collect())
             }
@@ -304,12 +313,12 @@ pub mod list_vtable {
                 elems.push(Object::new(other));
                 Object::make_list(elems)
             }
-        }
+        })
     }
-    fn eq(x: Primitive, y: Primitive) -> Object {
+    fn eq(x: Primitive, y: Primitive) -> Result<Object, MyriaErr> {
         let x = get_prim!(x, List);
         let y = get_prim!(y, List);
-        Object::make_bool(x == y)
+        Ok(Object::make_bool(x == y))
     }
 
     pub fn index(x: List, i: Object) -> Result<Object, MyriaErr> {

@@ -64,6 +64,7 @@ pub enum MyriaErr {
     VariableAlreadyExists(String),
     VariableNotMut(String),
 
+    ZeroDivision,
     BadFunctionArgumentCount(BadFnArgCnt),
     OutOfBounds(i64),
     InvalidType(PrimType),
@@ -289,7 +290,7 @@ impl Expression {
             Self::UnOp(unop) => {
                 let operand = unop.operand.evaluate(scope)?;
                 let func = pick_unfunc(unop.op, operand.vtable);
-                Ok(func(operand.primitive))
+                func(operand.primitive)
             }
             Self::BinOp(binop) => {
                 if binop.op == Operator::Assign {
@@ -299,7 +300,7 @@ impl Expression {
                     let right_val = binop.right.evaluate(scope)?;
                     let func = pick_binfunc(binop.op, left_val.vtable);
 
-                    Ok(func(left_val.primitive, right_val.primitive))
+                    func(left_val.primitive, right_val.primitive)
                 }
             }
             Self::BlockExpr(block) => {
