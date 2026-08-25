@@ -1,7 +1,14 @@
-let Point = class(x, y) {
-    var self.x = x
-    var self.y = y
+let M = class() {
+    let self.Vec2 = class(x, y) {
+        var self.x = x
+        var self.y = y
+    }
+    let self.Vec3 = class(x, y, z) {
+        var self.x = x
+        var self.y = y
+        var self.z = z
+    }
+    
 }
 
-let p = Point(1, 2)
-print(p)
+M()

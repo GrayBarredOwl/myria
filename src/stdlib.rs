@@ -58,14 +58,14 @@ fn import(args: Vec<Object>) -> Result<Object, MyriaErr> {
         unreachable!();
     };
     if !is_string(&fp.primitive) {
-        panic!("import must take a string");
+        return Err(MyriaErr::InvalidOperation("import must take a string".into()));
     }
     let Primitive::List(fp) = &fp.primitive else {
         unreachable!();
     };
 
     if fp.elems.is_empty() {
-        panic!("import must take a non-zero length string");
+        return Err(MyriaErr::InvalidOperation("import must take a non-zero length string".into()));
     }
 
     let mut fp = fp
@@ -86,28 +86,26 @@ fn modulus(args: Vec<Object>) -> Result<Object, MyriaErr> {
         panic!("mod function takes 2 arguments, not {}", args.len());
     }
     type P = Primitive;
-    Ok(match args[0].primitive {
+    match args[0].primitive {
         P::Int(x) => match args[1].primitive {
-            P::Int(y) => Object::make_int(x % y),
-            P::Float(y) => Object::make_float(x as f64 % y),
-            _ => panic!(
+            P::Int(y) => Ok(Object::make_int(x % y)),
+            P::Float(y) => Ok(Object::make_float(x as f64 % y)),
+            _ => Err(MyriaErr::InvalidOperation(format!(
                 "mod function only takes ints and floats, not {:?}",
                 args[1].get_type()
-            ),
+            ))),
         },
         P::Float(x) => match args[1].primitive {
-            P::Int(y) => Object::make_float(x % y as f64),
-            P::Float(y) => Object::make_float(x % y),
-            _ => panic!(
-                "mod function only takes ints and floats, not {:?}",
-                args[1].get_type()
-            ),
+            P::Int(y) => Ok(Object::make_float(x % y as f64)),
+            P::Float(y) => Ok(Object::make_float(x % y)),
+            _ => Err(MyriaErr::InvalidOperation(
+                format!("mod function only takes ints and floats, not {:?}",
+                args[1].get_type()))),
         },
-        _ => panic!(
-            "mod function only takes ints and floats, not {:?}",
-            args[0].get_type()
-        ),
-    })
+        _ => Err(MyriaErr::InvalidOperation(
+            format!("mod function only takes ints and floats, not {:?}",
+            args[0].get_type()))),
+    }
 }
 fn empty(args: Vec<Object>) -> Result<Object, MyriaErr> {
     assert!(args.is_empty());

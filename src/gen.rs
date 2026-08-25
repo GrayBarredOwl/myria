@@ -13,7 +13,8 @@ pub enum Keyword {
     Elif,
     Else,
     Loop,
-    Return,
+    Try,
+    Catch,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -77,7 +78,8 @@ pub fn keywords() -> &'static HashMap<&'static str, Keyword> {
         kw.insert("elif", Keyword::Elif);
         kw.insert("else", Keyword::Else);
         kw.insert("loop", Keyword::Loop);
-        kw.insert("return", Keyword::Return);
+        kw.insert("try", Keyword::Try);
+        kw.insert("catch", Keyword::Catch);
 
         kw
     })

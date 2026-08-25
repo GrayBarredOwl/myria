@@ -16,6 +16,6 @@ Return, break, continue keyworda
 Exceptions & error handling
 Variadic function syntax
 ~~Readme file~~
-Better error messages
+~~Better error messages~~
 ~~Better place for todo list to exist~~
 

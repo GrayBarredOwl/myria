@@ -12,6 +12,7 @@ pub enum Primitive {
 
     Type(PrimType),
     List(List),
+    // Error(MyriaErr),
     Function(Function),
     Instance(Scope),
 }

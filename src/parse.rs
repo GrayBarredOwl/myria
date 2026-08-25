@@ -1,4 +1,4 @@
-use crate::ast::{BinOpExpr, Expression, IfExpr, LoopExpr, UnOpExpr, VarData};
+use crate::ast::{BinOpExpr, Expression, IfExpr, LoopExpr, TryExpr, UnOpExpr, VarData};
 use crate::gen::Operator::RParen;
 use crate::gen::{Keyword, Operator};
 use crate::lex::{Token, TokenType};
@@ -55,6 +55,8 @@ impl<'a> Parser<'a> {
             cur_expr.push(self.parse_expr().unwrap());
         } else if matches!(next_token, TT::Keyword(KW::If)) {
             cur_expr.push(self.parse_if());
+        } else if matches!(next_token, TT::Keyword(KW::Try)) {
+            cur_expr.push(self.parse_try());
         } else if matches!(next_token, TT::Keyword(KW::Loop)) {
             cur_expr.push(self.parse_loop());
         } else if matches!(next_token, TT::Operator(Operator::LCurly)) {
@@ -144,7 +146,6 @@ impl<'a> Parser<'a> {
     fn parse_if(&mut self) -> Expression {
         type KW = Keyword;
         type TT = TokenType;
-        // type Expr = Expression;
 
         assert!(matches!(
             self.peek().info,
@@ -164,7 +165,9 @@ impl<'a> Parser<'a> {
 
         let body = self.parse_block();
 
-        let to_else = if self.peek().info == TT::Keyword(KW::Else) {
+        let to_else = if !self.can_peek() {
+            Expression::default()
+        } else if self.peek().info == TT::Keyword(KW::Else) {
             let _else = self.consume();
             self.parse_block()
         } else if self.peek().info == TT::Keyword(KW::Elif) {
@@ -177,6 +180,28 @@ impl<'a> Parser<'a> {
             condition: Box::new(condition_parser.parse()),
             to_resolve: Box::new(body),
             to_else: Box::new(to_else),
+        })
+    }
+    fn parse_try(&mut self) -> Expression {
+        type KW = Keyword;
+        type TT = TokenType;
+
+        assert!(matches!( self.peek().info, TT::Keyword(KW::Try) ));
+        let _try = self.consume();
+        let body = self.parse_block();
+
+        let catch = if !self.can_peek() {
+            Expression::default()
+        } else if self.peek().info == TT::Keyword(KW::Catch) {
+            let _catch = self.consume();
+            self.parse_block()
+        } else {
+            Expression::default()
+        };
+
+        Expression::Try(TryExpr {
+            body: Box::new(body),
+            catch: Box::new(catch),
         })
     }
     fn parse_loop(&mut self) -> Expression {

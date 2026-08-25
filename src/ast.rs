@@ -18,6 +18,12 @@ pub struct LoopExpr {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct TryExpr {
+    pub body: Box<Expression>,
+    pub catch: Box<Expression>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct UnOpExpr {
     pub op: Operator,
     pub operand: Box<Expression>,
@@ -37,6 +43,7 @@ pub enum Expression {
     MakeVar(String, VarData),
     If(IfExpr),
     Loop(LoopExpr),
+    Try(TryExpr),
     UnOp(UnOpExpr),
     BinOp(BinOpExpr),
     BlockExpr(Vec<Expression>),
@@ -50,14 +57,14 @@ impl Default for Expression {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum MyriaErr {
     VariableDNE(String),
     VariableNotInit(String),
     VariableAlreadyExists(String),
     VariableNotMut(String),
 
-    WrongFunctionArgumentCount(usize, usize),
+    BadFunctionArgumentCount(BadFnArgCnt),
     OutOfBounds(i64),
     InvalidType(PrimType),
     FileError(String),
@@ -69,7 +76,11 @@ impl std::fmt::Display for MyriaErr {
     }
 }
 impl Error for MyriaErr {
-    
+}
+#[derive(Debug, Default, Clone, PartialEq)]
+struct BadFnArgCnt {
+    param_count: usize,
+    arg_count: usize,
 }
 
 #[derive(Default, Debug, Clone, PartialEq)]
@@ -165,7 +176,7 @@ impl Scope {
             };
             let base_var = self.get_once(base)?;
             let Primitive::Instance(fields) = base_var.value.primitive else {
-                return Err(MyriaErr::InvalidOperation(("Can not get fields of non-Instance".into())));
+                return Err(MyriaErr::InvalidOperation("Can not get fields of non-Instance".into()));
             };
             fields.get(rest)
         }
@@ -187,7 +198,8 @@ impl Scope {
                 return false;
             };
             let Primitive::Instance(fields) = base_var.value.primitive else {
-                panic!("Can not get fields of non-Instance");
+                // panic!("Can not get fields of non-Instance");
+                return false;
             };
             fields.var_exists(rest)
         }
@@ -226,7 +238,7 @@ impl Scope {
             };
             let base_var = self.get_once_mut(base)?;
             let Primitive::Instance(ref mut fields) = base_var.value.primitive else {
-                return Err(MyriaErr::InvalidOperation(("Can not create field on non-Instance".into())));
+                return Err(MyriaErr::InvalidOperation("Can not create field on non-Instance".into()));
             };
             // dbg!(rest, &config);
             fields.create_with_config(rest, config)
@@ -268,6 +280,11 @@ impl Expression {
                         break Ok(result);
                     }
                 }
+            }
+            Self::Try(try_obj) => {
+                try_obj.body
+                    .evaluate(scope)
+                    .or_else(|_| try_obj.catch.evaluate(scope))
             }
             Self::UnOp(unop) => {
                 let operand = unop.operand.evaluate(scope)?;
@@ -360,7 +377,7 @@ fn function_call(vec: Vec<Expression>, scope: &mut Scope) -> Result<Object, Myri
     match func.primitive.clone() {
         P::Type(ty) => {
             if args.len() != 1 {
-                return Err(InvalidOperation(("Can not cast more than one value at a time".into())));
+                return Err(InvalidOperation("Can not cast more than one value at a time".into()));
             }
             let mut vec = vec;
             let arg = vec.swap_remove(1);
@@ -374,12 +391,16 @@ fn function_call(vec: Vec<Expression>, scope: &mut Scope) -> Result<Object, Myri
             } = lfunc;
             assert!(!is_variadic);
             if args.len() != params.len() {
-                panic!(
-                    "Function called with incorrect number of arguments({} instead of {}): {:?}",
-                    args.len(),
-                    params.len(),
-                    args,
-                );
+                return Err(MyriaErr::BadFunctionArgumentCount(BadFnArgCnt {
+                    param_count: params.len(),
+                    arg_count: args.len(),
+                }));
+                // panic!(
+                    // "Function called with incorrect number of arguments({} instead of {}): {:?}",
+                    // args.len(),
+                    // params.len(),
+                    // args,
+                // );
             }
 
             let mut fn_scope = Scope::default();
@@ -405,6 +426,6 @@ fn function_call(vec: Vec<Expression>, scope: &mut Scope) -> Result<Object, Myri
                 .collect::<Result<Vec<Object>, MyriaErr>>()?;
             fn_ptr(args)
         }
-        _ => return Err(MyriaErr::InvalidOperation("Can not call non-function: {func:?}".into())),
+        _ => Err(MyriaErr::InvalidOperation("Can not call non-function: {func:?}".into())),
     }
 }
