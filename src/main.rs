@@ -1,3 +1,4 @@
+mod arg_parse;
 mod ast;
 mod gen;
 mod lex;
@@ -6,51 +7,59 @@ mod parse;
 mod stdlib;
 mod vtable;
 
-use obj::Primitive;
-use std::{env, fs, io::Write};
+use std::{
+    env, fs,
+    io::{self, Write},
+};
+use crate::ast::MyriaErr;
+
+use {
+    ast::Scope,
+    lex::Lexer,
+    obj::{Object, Primitive},
+    parse::Parser,
+};
 
 fn main() {
-    let mut args = env::args();
-    let _this_path = args.next().expect("Always contains it's own file path");
-    let Some(file) = args.next() else {
+    let config = arg_parse::parse_args(env::args());
+
+    let Some(file) = config.file else {
         repl();
         return;
     };
     let program = fs::read_to_string(&file);
     let Ok(program) = program else {
-        panic!("File({}) could not be read: {}", file, program.unwrap_err());
+        panic!(
+            "File({}) could not be read: {}",
+            file.display(),
+            program.unwrap_err()
+        );
     };
     dbg!("{}\n", &program);
 
-    let tokens = lex::Lexer::new(&program).tokenize();
-    dbg!(&tokens);
-
-    let parser = parse::Parser::new(&tokens);
-    let ex = parser.parse();
-    dbg!(&ex);
-
-    let result = ex.resolve();
-    println!("Result: {result}");
+    match run_myria(&program) {
+        Ok(result) => println!("Result: {result}"),
+        Err(err) => gen::print_error(err),
+    }
 }
 
 fn repl() {
-    use crate::{ast::Scope, lex, parse::Parser};
     let mut scope = Scope::default();
 
     loop {
         print!("> ");
-        std::io::stdout().flush().unwrap();
+        io::stdout().flush().unwrap();
 
         let resp = {
             let mut s = String::new();
-            std::io::stdin().read_line(&mut s).unwrap();
+            io::stdin().read_line(&mut s).unwrap();
             s = s.trim().to_string();
 
             while s.ends_with('\\') {
                 s.pop();
                 let mut s2 = String::new();
-                std::io::stdin().read_line(&mut s2).unwrap();
-                s2 = s2.trim().to_string();
+                io::stdin().read_line(&mut s2).unwrap();
+                let s2 = s2.trim();
                 s = format!("{s}\n{s2}");
             }
             s
@@ -59,33 +68,28 @@ fn repl() {
 
         if resp == "exit" || resp == "quit" {
             break;
+        };
+        match run_myria_with_scope(resp, &mut scope) {
+            Ok(result) => {
+                if result.primitive != Primitive::Null {
+                    println!("{result}");
+                    // println!("{result:?}");
+                }
+            }
+            Err(err) => gen::print_error(err),
         }
-
-        let lexer = lex::Lexer::new(resp);
-        let toks = lexer.tokenize();
-        dbg!(&toks);
-        let parser = Parser::new(&toks);
-        let expr = parser.parse();
-        dbg!(&expr);
-        let result = expr.evaluate(&mut scope);
-        // if result.primitive != Primitive::Null {
-        if result.primitive != Primitive::Null {
-            println!("{result}");
-        }
-        // println!("{result:?}");
-        // }
     }
 }
 
-fn test() -> ! {
-    use lex::Lexer;
-    use parse::Parser;
-    let program = format!("{}\n{}", "var a = empty()", "var a.x = true");
-    let lex = Lexer::new(&program);
-    let tokens = lex.tokenize();
-    let parser = Parser::new(&tokens);
+fn run_myria(program: &str) -> Result<Object, MyriaErr> {
+    run_myria_with_scope(program, &mut Scope::default())
+}
+fn run_myria_with_scope(program: &str, scope: &mut Scope) -> Result<Object, MyriaErr> {
+    let lexer = Lexer::new(program);
+    let toks = lexer.tokenize();
+    dbg!(&toks);
+    let parser = Parser::new(&toks);
     let expr = parser.parse();
-
-    expr.resolve();
-    std::process::exit(0);
+    dbg!(&expr);
+    expr.evaluate(scope)
 }

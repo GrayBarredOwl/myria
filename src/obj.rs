@@ -1,4 +1,4 @@
-use crate::ast::{Expression, Scope};
+use crate::ast::{Expression, MyriaErr, Scope};
 use crate::vtable::{self, VTable};
 
 #[derive(Debug, Default, PartialEq, Clone)]
@@ -383,10 +383,10 @@ impl Primitive {
 #[allow(unpredictable_function_pointer_comparisons)]
 pub struct RustFunc {
     pub num_args: Option<i64>,
-    pub fn_ptr: fn(Vec<Object>) -> Object,
+    pub fn_ptr: fn(Vec<Object>) -> Result<Object, MyriaErr>,
 }
 impl RustFunc {
-    pub const fn new(num_args: Option<i64>, fn_ptr: fn(Vec<Object>) -> Object) -> Self {
+    pub const fn new(num_args: Option<i64>, fn_ptr: fn(Vec<Object>) -> Result<Object, MyriaErr>) -> Self {
         Self { num_args, fn_ptr }
     }
 }

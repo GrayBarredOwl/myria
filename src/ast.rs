@@ -1,7 +1,9 @@
+use crate::ast::MyriaErr::InvalidOperation;
 use crate::gen::Operator;
 use crate::obj::{Object, PrimType, Primitive};
 use crate::vtable::{pick_binfunc, pick_unfunc};
 use std::collections::HashMap;
+use std::error::Error;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct IfExpr {
@@ -32,7 +34,7 @@ pub struct BinOpExpr {
 pub enum Expression {
     Value(Object),
     Variable(String),
-    MakeVar(String, VarData, Option<Object>),
+    MakeVar(String, VarData),
     If(IfExpr),
     Loop(LoopExpr),
     UnOp(UnOpExpr),
@@ -48,6 +50,28 @@ impl Default for Expression {
     }
 }
 
+#[derive(Debug, Clone)]
+pub enum MyriaErr {
+    VariableDNE(String),
+    VariableNotInit(String),
+    VariableAlreadyExists(String),
+    VariableNotMut(String),
+
+    WrongFunctionArgumentCount(usize, usize),
+    OutOfBounds(i64),
+    InvalidType(PrimType),
+    FileError(String),
+    InvalidOperation(String),
+}
+impl std::fmt::Display for MyriaErr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{self:?}")
+    }
+}
+impl Error for MyriaErr {
+    
+}
+
 #[derive(Default, Debug, Clone, PartialEq)]
 pub struct VarData {
     pub is_const: bool,
@@ -60,22 +84,22 @@ impl VarData {
         Self {
             is_const: true,
             is_init: true,
-            value: value,
+            value,
         }
     }
     pub fn make_var(value: Object) -> Self {
         Self {
             is_const: false,
             is_init: true,
-            value: value,
+            value,
         }
     }
     fn can_modify(&self) -> bool {
         !self.is_const || !self.is_init
     }
-    fn set(&mut self, value: Object) -> Result<(), ()> {
+    fn set(&mut self, value: Object) -> Result<(), MyriaErr> {
         if !self.can_modify() {
-            Err(())
+            Err(MyriaErr::VariableNotMut("{}".into()))
         } else {
             self.value = value;
             self.is_init = true;
@@ -131,7 +155,7 @@ impl Scope {
     fn push_const(&mut self, name: String, value: Object) {
         self.vars.insert(name, VarData::make_constant(value));
     }
-    fn get(&self, name: &str) -> VarData {
+    fn get(&self, name: &str) -> Result<VarData, MyriaErr> {
         // dbg!(name);
         if !name.contains('.') {
             self.get_once(name)
@@ -139,94 +163,94 @@ impl Scope {
             let Some((base, rest)) = name.split_once('.') else {
                 unreachable!();
             };
-            let base_var = self.get_once(base);
+            let base_var = self.get_once(base)?;
             let Primitive::Instance(fields) = base_var.value.primitive else {
-                panic!("Can not get fields of non-Instance");
+                return Err(MyriaErr::InvalidOperation(("Can not get fields of non-Instance".into())));
             };
             fields.get(rest)
         }
     }
-    fn get_once(&self, name: &str) -> VarData {
-        match self.vars.get(name) {
-            Some(var) => var.clone(),
-            None => panic!("Undeclared variable: {name}"),
-        }
+    fn get_once(&self, name: &str) -> Result<VarData, MyriaErr> {
+        self.vars.get(name).cloned().ok_or(MyriaErr::VariableDNE(name.to_string()))
     }
-    fn get_once_mut(&mut self, name: &str) -> &mut VarData {
-        self.vars.get_mut(name).expect("Undeclared variable")
+    fn get_once_mut(&mut self, name: &str) -> Result<&mut VarData, MyriaErr> {
+        self.vars.get_mut(name).ok_or(MyriaErr::VariableDNE(name.to_string()))
     }
     fn var_exists(&self, name: &str) -> bool {
         if !name.contains('.') {
-            self.vars.get(name).is_some()
+            self.vars.contains_key(name)
         } else {
             let Some((base, rest)) = name.split_once('.') else {
                 unreachable!();
             };
-            let base_var = self.get_once(base);
+            let Ok(base_var) = self.get_once(base) else {
+                return false;
+            };
             let Primitive::Instance(fields) = base_var.value.primitive else {
                 panic!("Can not get fields of non-Instance");
             };
             fields.var_exists(rest)
         }
     }
-    fn set(&mut self, name: &str, value: Object) {
+    fn set(&mut self, name: &str, value: Object) -> Result<(), MyriaErr> {
         if !name.contains('.') {
-            self.set_once(name, value);
+            self.set_once(name, value)
         } else {
             let Some((base, rest)) = name.split_once('.') else {
                 unreachable!();
             };
-            let base_var = self.get_once_mut(base);
+            let base_var = self.get_once_mut(base)?;
             let Primitive::Instance(ref mut fields) = base_var.value.primitive else {
-                panic!("Can not set fields of non-Instance");
+                return Err(MyriaErr::InvalidOperation("Can not set fields of non-Instance".into()));
             };
-            fields.set(rest, value);
+            fields.set(rest, value)
         }
     }
-    fn set_once(&mut self, name: &str, value: Object) {
+    fn set_once(&mut self, name: &str, value: Object) -> Result<(), MyriaErr> {
         let config = self
             .vars
             .get_mut(name)
-            .expect("Variable {name} does not exist");
+            .ok_or(MyriaErr::VariableDNE(name.to_string()))?;
         if !config.can_modify() {
-            panic!("Can not modify {name}: {config:?}");
+            return Err(MyriaErr::VariableNotMut(name.into()));
         }
-        config.set(value).unwrap();
+        config.set(value)
     }
-    fn create_with_config(&mut self, name: &str, config: VarData) {
+    fn create_with_config(&mut self, name: &str, config: VarData) -> Result<(), MyriaErr> {
         if !name.contains('.') {
             self.vars.insert(name.into(), config);
+            Ok(())
         } else {
             let Some((base, rest)) = name.split_once('.') else {
                 unreachable!();
             };
-            let base_var = self.get_once_mut(base);
+            let base_var = self.get_once_mut(base)?;
             let Primitive::Instance(ref mut fields) = base_var.value.primitive else {
-                panic!("Can not create field on non-Instance");
+                return Err(MyriaErr::InvalidOperation(("Can not create field on non-Instance".into())));
             };
             // dbg!(rest, &config);
-            fields.create_with_config(rest, config);
+            fields.create_with_config(rest, config)
             // dbg!(&fields);
         }
     }
 }
 
 impl Expression {
-    pub fn resolve(self) -> Object {
-        self.evaluate(&mut Scope::default())
-    }
-    pub fn evaluate(self, scope: &mut Scope) -> Object {
+    // pub fn resolve(self) -> Object {
+    //     self.evaluate(&mut Scope::default())
+    // }
+    pub fn evaluate(self, scope: &mut Scope) -> Result<Object, MyriaErr> {
         match self {
-            Self::Value(data) => data,
+            Self::Value(data) => Ok(data),
             Self::Variable(name) => {
-                let varinfo = scope.get(&name);
+                let varinfo = scope.get(&name)?;
                 if !varinfo.is_init {
-                    panic!("Reading uninitialized variable: {name}");
+                    return Err(MyriaErr::VariableNotInit(name));
                 }
-                varinfo.value
+                Ok(varinfo.value)
             }
             Self::If(if_obj) => {
-                let should_execute = if_obj.condition.evaluate(scope);
+                let should_execute = if_obj.condition.evaluate(scope)?;
 
                 if should_execute.primitive.is_truthy() {
                     if_obj.to_resolve.evaluate(scope)
@@ -237,78 +261,66 @@ impl Expression {
             Self::Loop(loop_obj) => {
                 let mut result = Object::default();
                 loop {
-                    let should_loop = loop_obj.condition.clone().evaluate(scope);
+                    let should_loop = loop_obj.condition.clone().evaluate(scope)?;
                     if should_loop.primitive.is_truthy() {
-                        result = loop_obj.to_resolve.clone().evaluate(scope);
+                        result = loop_obj.to_resolve.clone().evaluate(scope)?;
                     } else {
-                        break result;
+                        break Ok(result);
                     }
                 }
             }
             Self::UnOp(unop) => {
-                let operand = unop.operand.evaluate(scope);
+                let operand = unop.operand.evaluate(scope)?;
                 let func = pick_unfunc(unop.op, operand.vtable);
-                func(operand.primitive)
+                Ok(func(operand.primitive))
             }
             Self::BinOp(binop) => {
                 if binop.op == Operator::Assign {
                     assign(*binop.left, *binop.right, scope)
-                } else if binop.op == Operator::Dot {
-                    let left_val = binop.left.evaluate(scope);
-                    field_access(left_val.primitive, *binop.right, scope)
                 } else {
-                    let left_val = binop.left.evaluate(scope);
-                    let right_val = binop.right.evaluate(scope);
+                    let left_val = binop.left.evaluate(scope)?;
+                    let right_val = binop.right.evaluate(scope)?;
                     let func = pick_binfunc(binop.op, left_val.vtable);
 
-                    func(left_val.primitive, right_val.primitive)
+                    Ok(func(left_val.primitive, right_val.primitive))
                 }
             }
             Self::BlockExpr(block) => {
                 let mut result = Object::default();
                 for expr in block {
-                    result = expr.evaluate(scope);
+                    result = expr.evaluate(scope)?;
                 }
-                result
+                Ok(result)
             }
             Self::ListExpr(list) => {
-                let l = list.into_iter().map(|e| e.evaluate(scope));
-                Object::make_list(l.collect())
+                let l = list
+                    .into_iter()
+                    .map(|e| e.evaluate(scope))
+                    .collect::<Result<Vec<Object>, MyriaErr>>()?;
+                Ok(Object::make_list(l))
             }
-            Self::MakeVar(name, config, None) => {
+            Self::MakeVar(name, config) => {
                 if scope.var_exists(&name) {
-                    panic!("Can not create existing variable: {name}");
+                    Err(MyriaErr::VariableAlreadyExists(name))
+                } else {
+                    scope.create_with_config(&name, config).map(|_| Object::default())
                 }
-                // scope.create_var(name, value);
-                scope.create_with_config(&name, config);
-                // scope.vars.insert(name, config);
-                Object::default()
             }
-            Self::MakeVar(_name, _config, Some(_inst)) => {
-                println!("HEREEREREr");
-                panic!();
-                // let Primitive::Instance(mut inst_scope) = inst.primitive else {
-                //     panic!("Fields can only be given to Instances");
-                // };
-                // if inst_scope.var_exists(&name) {
-                //     panic!("Can not create existing variable: {name}");
-                // }
-                // inst_scope.vars.insert(name, config);
-                // Object::default()
-            }
+
             Self::Call(vec) => function_call(vec, scope),
         }
     }
 
     pub fn push(&mut self, new_expr: Self) {
         match self {
-            Self::Value(Object { primitive: Primitive::Null, .. }) => *self = new_expr,
-            Self::BlockExpr(exprs) => {
-                match new_expr {
-                    Self::BlockExpr(other_block) => exprs.extend(other_block.into_iter()),
-                    other_expr => exprs.push(other_expr),
-                }
-            }
+            Self::Value(Object {
+                primitive: Primitive::Null,
+                ..
+            }) => *self = new_expr,
+            Self::BlockExpr(exprs) => match new_expr {
+                Self::BlockExpr(other_block) => exprs.extend(other_block),
+                other_expr => exprs.push(other_expr),
+            },
             _ => {
                 let exprs = vec![self.clone(), new_expr];
                 *self = Expression::BlockExpr(exprs);
@@ -327,59 +339,32 @@ impl Expression {
     }
 }
 
-fn assign(left: Expression, right: Expression, scope: &mut Scope) -> Object {
-    let value = right.evaluate(scope);
+fn assign(left: Expression, right: Expression, scope: &mut Scope) -> Result<Object, MyriaErr> {
+    let value = right.evaluate(scope)?;
     let Expression::Variable(name) = left else {
-        panic!("Attempt to assign to non-variable");
+        return Err(MyriaErr::InvalidOperation("Can not assign to non-variable".into()));
     };
-    if !scope.var_exists(&name) {
-        panic!("Variable not created: {name}");
-    }
-    // dbg!(&name, &value);
-    scope.set(&name, value);
-    // let var = scope.get_mut(&name);
-    // if !var.can_modify() {
-    //     panic!("Constant({name}) can not be overriden with ({value:?})");
-    // }
-    // var.set(value).unwrap();
+    scope.set(&name, value)?;
 
-    Object::default()
+    Ok(Object::default())
 }
-fn field_access(prim: Primitive, expr: Expression, scope: &mut Scope) -> Object {
-    use crate::vtable::list_vtable;
-    type P = Primitive;
-    match prim.clone() {
-        P::List(lst) => list_vtable::index(lst, expr.evaluate(scope)),
-        P::Instance(_fields) => {
-            todo!();
-            // let Expression::Variable(name) = expr else {
-            // panic!();
-            // };
-            // let Some(value) = fields.vars.get(&name) else {
-            // panic!("Field {name} does not exist on {prim:?}");
-            // };
-            // (*value.value).clone()
-            // Object::default()
-        }
-        _ => panic!("{prim:?} has no fields!"),
-    }
-}
-fn function_call(vec: Vec<Expression>, scope: &mut Scope) -> Object {
+
+fn function_call(vec: Vec<Expression>, scope: &mut Scope) -> Result<Object, MyriaErr> {
     use crate::obj::{Function, LangFunc, RustFunc};
 
     assert!(!vec.is_empty());
-    let func = vec[0].clone().evaluate(scope);
+    let func = vec[0].clone().evaluate(scope)?;
     let args = &vec[1..];
 
     type P = Primitive;
     match func.primitive.clone() {
         P::Type(ty) => {
             if args.len() != 1 {
-                panic!("Can not cast more than one value at a time");
+                return Err(InvalidOperation(("Can not cast more than one value at a time".into())));
             }
             let mut vec = vec;
             let arg = vec.swap_remove(1);
-            ty.cast(arg.evaluate(scope))
+            Ok(ty.cast(arg.evaluate(scope)?))
         }
         P::Function(Function::LangFn(lfunc)) => {
             let LangFunc {
@@ -400,7 +385,7 @@ fn function_call(vec: Vec<Expression>, scope: &mut Scope) -> Object {
             let mut fn_scope = Scope::default();
             fn_scope.push_const("recurs".into(), func);
             for (name, val) in params.into_iter().zip(vec.into_iter().skip(1)) {
-                fn_scope.push_var(name, val.evaluate(scope));
+                fn_scope.push_var(name, val.evaluate(scope)?);
             }
             body.evaluate(&mut fn_scope)
         }
@@ -413,9 +398,13 @@ fn function_call(vec: Vec<Expression>, scope: &mut Scope) -> Object {
                 ),
                 _ => (),
             };
-            let args = vec.into_iter().skip(1).map(|arg| arg.evaluate(scope));
-            fn_ptr(args.collect())
+            let args = vec
+                .into_iter()
+                .skip(1)
+                .map(|arg| arg.evaluate(scope))
+                .collect::<Result<Vec<Object>, MyriaErr>>()?;
+            fn_ptr(args)
         }
-        _ => panic!("Can not call non-function: {func:?}"),
+        _ => return Err(MyriaErr::InvalidOperation("Can not call non-function: {func:?}".into())),
     }
 }

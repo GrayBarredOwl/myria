@@ -13,7 +13,6 @@ pub enum Keyword {
     Elif,
     Else,
     Loop,
-    Call,
     Return,
 }
 
@@ -78,7 +77,6 @@ pub fn keywords() -> &'static HashMap<&'static str, Keyword> {
         kw.insert("elif", Keyword::Elif);
         kw.insert("else", Keyword::Else);
         kw.insert("loop", Keyword::Loop);
-        kw.insert("call", Keyword::Call);
         kw.insert("return", Keyword::Return);
 
         kw
@@ -126,20 +124,23 @@ pub fn operators() -> &'static HashMap<&'static str, Operator> {
     })
 }
 
-use crate::ast::Scope;
+use crate::ast::{MyriaErr, Scope};
 use crate::obj::Object;
-use std::io;
 
-pub fn run_file(fp: &str) -> io::Result<Object> {
+pub fn run_file(fp: &str) -> Result<Object, MyriaErr> {
     run_file_with(fp, &mut Scope::default())
 }
-pub fn run_file_with(fp: &str, scope: &mut Scope) -> io::Result<Object> {
+pub fn run_file_with(fp: &str, scope: &mut Scope) -> Result<Object, MyriaErr> {
     use crate::{lex::Lexer, parse::Parser};
     use std::fs;
 
-    let program = fs::read_to_string(fp)?;
+    let program = fs::read_to_string(fp).map_err(|er| MyriaErr::FileError(er.to_string()))?;
     let tokens = Lexer::new(&program).tokenize();
 
     let expr = Parser::new(&tokens).parse();
-    Ok(expr.evaluate(scope))
+    expr.evaluate(scope)
+}
+
+pub fn print_error(err: MyriaErr) {
+    println!("ERROR: {err:?}");
 }

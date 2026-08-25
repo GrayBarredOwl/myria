@@ -283,7 +283,7 @@ pub mod char_vtable {
 }
 
 pub mod list_vtable {
-    use crate::obj::{List, PrimType};
+    use crate::{ast::MyriaErr, obj::{List, PrimType}};
 
     use super::*;
 
@@ -312,23 +312,20 @@ pub mod list_vtable {
         Object::make_bool(x == y)
     }
 
-    pub fn index(x: List, i: Object) -> Object {
+    pub fn index(x: List, i: Object) -> Result<Object, MyriaErr> {
         if i.get_type() != PrimType::Int {
-            panic!("Can")
+            return Err(MyriaErr::InvalidType(i.get_type()));
         }
         let i = match i.primitive {
             Primitive::Int(val) => val,
             _ => unreachable!(),
         };
 
-        if i < 0 {
-            panic!("Can not index with a negative number! {i}, {x:?}");
+        if i < 0 || i as usize >= x.elems.len() {
+            return Err(MyriaErr::OutOfBounds(i));
         }
         let i = i as usize;
-        if i >= x.elems.len() {
-            panic!("Index out of bounds! {i}, {}", Object::make_list(x.elems));
-        }
-        x.elems[i].clone()
+        Ok(x.elems[i].clone())
     }
 }
 

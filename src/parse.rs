@@ -65,8 +65,6 @@ impl<'a> Parser<'a> {
             cur_expr.push(self.parse_str());
         } else if matches!(next_token, TT::Keyword(KW::Func) | TT::Keyword(KW::Class)) {
             cur_expr.push(self.parse_func());
-        } else if matches!(next_token, TT::Keyword(KW::Call)) {
-            cur_expr.push(self.parse_fn_call());
         } else if next_token.is_unary_op() {
             cur_expr.push(self.parse_unop());
         } else if next_token.is_value() {
@@ -140,7 +138,7 @@ impl<'a> Parser<'a> {
             );
         };
 
-        Expr::MakeVar(var_name.clone(), config, None)
+        Expr::MakeVar(var_name.clone(), config)
     }
 
     fn parse_if(&mut self) -> Expression {
@@ -393,11 +391,8 @@ impl<'a> Parser<'a> {
         let _rparen = self.consume();
         let mut body = self.parse_block();
         if is_class {
-            let mut prefix = Expression::MakeVar(
-                "self".into(),
-                VarData::make_var(Object::make_inst()),
-                None,
-            );
+            let mut prefix =
+                Expression::MakeVar("self".into(), VarData::make_constant(Object::make_inst()));
 
             prefix.push(body);
             prefix.push(Expression::Variable("self".into()));
@@ -408,14 +403,7 @@ impl<'a> Parser<'a> {
     }
     fn parse_fn_call(&mut self) -> Expression {
         type TT = TokenType;
-        type KW = Keyword;
 
-        if self.peek().info == TT::Keyword(KW::Call) {
-            // Optional call keyword
-            self.consume();
-        }
-        // assert!(self.peek().info == TT::Keyword(KW::Call));
-        // let _call = self.consume();
         assert!(matches!(self.peek().info, TT::Id(_)));
         if !matches!(self.peek().info, TT::Id(_)) {
             panic!("A function call can only be performed on a variable")
@@ -474,8 +462,8 @@ impl<'a> Parser<'a> {
             let parser = Parser::new(tokens);
             vec.push(parser.parse());
 
-            if self.can_peek() && self.peek().info == TT::Operator(Op::Comma){
-                let _comma= self.consume();
+            if self.can_peek() && self.peek().info == TT::Operator(Op::Comma) {
+                let _comma = self.consume();
             }
         }
         if self.can_peek() {
