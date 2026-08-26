@@ -59,6 +59,8 @@ impl<'a> Parser<'a> {
             cur_expr.push(self.parse_try());
         } else if matches!(next_token, TT::Keyword(KW::Loop)) {
             cur_expr.push(self.parse_loop());
+        } else if matches!(next_token, TT::Keyword(KW::Throw)) {
+            cur_expr.push(self.parse_throw());
         } else if matches!(next_token, TT::Operator(Operator::LCurly)) {
             cur_expr.push(self.parse_block());
         } else if matches!(next_token, TT::Operator(Operator::LBracket)) {
@@ -207,7 +209,6 @@ impl<'a> Parser<'a> {
     fn parse_loop(&mut self) -> Expression {
         type KW = Keyword;
         type TT = TokenType;
-        // type Expr = Expression;
 
         assert!(matches!(self.peek().info, TT::Keyword(KW::Loop)));
         let _loop = self.consume();
@@ -227,6 +228,16 @@ impl<'a> Parser<'a> {
             condition: Box::new(condition_parser.parse()),
             to_resolve: Box::new(body),
         })
+    }
+    fn parse_throw(&mut self) -> Expression {
+        type KW = Keyword;
+        type TT = TokenType;
+        // type Expr = Expression;
+
+        assert!(matches!(self.peek().info, TT::Keyword(KW::Throw)));
+        let _throw = self.consume().clone();
+        let value = self.parse_expr().unwrap_or_default();
+        Expression::Throw(Box::new(value))
     }
     fn parse_unop(&mut self) -> Expression {
         type TT = TokenType;

@@ -1,4 +1,4 @@
-mod arg_parse;
+mod myria_settings;
 mod ast;
 mod gen;
 mod lex;
@@ -7,36 +7,23 @@ mod parse;
 mod stdlib;
 mod vtable;
 
-use std::{
-    env, fs,
-    io::{self, Write},
-};
-use crate::ast::MyriaErr;
+use std::{env, io::{self, Write}};
 
 use {
-    ast::Scope,
     lex::Lexer,
-    obj::{Object, Primitive},
     parse::Parser,
+    obj::{Object, Primitive},
+    ast::{Scope, MyriaErr},
+    myria_settings::MyriaConfig,
 };
 
 fn main() {
-    let config = arg_parse::parse_args(env::args());
-
-    let Some(file) = config.file else {
+    let config = MyriaConfig::from_args(env::args());
+    let Some(program) = config.program_string() else {
         repl();
         return;
     };
-    let program = fs::read_to_string(&file);
-    let Ok(program) = program else {
-        panic!(
-            "File({}) could not be read: {}",
-            file.display(),
-            program.unwrap_err()
-        );
-    };
     dbg!("{}\n", &program);
-
     match run_myria(&program) {
         Ok(result) => println!("Result: {result}"),
         Err(err) => gen::print_error(err),

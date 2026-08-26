@@ -44,6 +44,7 @@ pub enum Expression {
     If(IfExpr),
     Loop(LoopExpr),
     Try(TryExpr),
+    Throw(Box<Expression>),
     UnOp(UnOpExpr),
     BinOp(BinOpExpr),
     BlockExpr(Vec<Expression>),
@@ -63,6 +64,7 @@ pub enum MyriaErr {
     VariableNotInit(String),
     VariableAlreadyExists(String),
     VariableNotMut(String),
+    Thrown(Object),
 
     ZeroDivision,
     BadFunctionArgumentCount(BadFnArgCnt),
@@ -286,6 +288,10 @@ impl Expression {
                 try_obj.body
                     .evaluate(scope)
                     .or_else(|_| try_obj.catch.evaluate(scope))
+            }
+            Self::Throw(throw_obj) => {
+                let value = throw_obj.evaluate(scope)?;
+                Err(MyriaErr::Thrown(value))
             }
             Self::UnOp(unop) => {
                 let operand = unop.operand.evaluate(scope)?;

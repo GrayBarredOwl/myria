@@ -15,6 +15,7 @@ pub enum Keyword {
     Loop,
     Try,
     Catch,
+    Throw,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -80,6 +81,7 @@ pub fn keywords() -> &'static HashMap<&'static str, Keyword> {
         kw.insert("loop", Keyword::Loop);
         kw.insert("try", Keyword::Try);
         kw.insert("catch", Keyword::Catch);
+        kw.insert("throw", Keyword::Throw);
 
         kw
     })

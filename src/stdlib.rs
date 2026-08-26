@@ -5,6 +5,7 @@ pub const FUNCS: &[(&str, RustFunc)] = &[
     ("dbg_print", RustFunc::new(None, dbg_print)),
     ("exit", RustFunc::new(None, exit)),
     ("import", RustFunc::new(Some(1), import)),
+    ("file", RustFunc::new(Some(1), file)),
     ("mod", RustFunc::new(Some(2), modulus)),
     ("empty", RustFunc::new(Some(0), empty)),
     ("str", RustFunc::new(Some(1), to_string)),
@@ -68,8 +69,7 @@ fn import(args: Vec<Object>) -> Result<Object, MyriaErr> {
         return Err(MyriaErr::InvalidOperation("import must take a non-zero length string".into()));
     }
 
-    let mut fp = fp
-        .elems
+    let mut fp = fp.elems
         .iter()
         .map(|c| match c.primitive {
             Primitive::Char(c) => c,
@@ -79,6 +79,29 @@ fn import(args: Vec<Object>) -> Result<Object, MyriaErr> {
     fp.push_str(crate::gen::EXTENSION);
 
     gen::run_file(&fp)
+}
+
+fn file(args: Vec<Object>) -> Result<Object, MyriaErr> {
+    let [fp] = &args[..] else {
+        unreachable!();
+    };
+    if !is_string(&fp.primitive) {
+        return Err(MyriaErr::InvalidOperation("file function expects a string".into()));
+    }
+    let Primitive::List(fp) = &fp.primitive else {
+        unreachable!();
+    };
+    let fp = fp.elems
+        .iter()
+        .map(|c| match c.primitive {
+            Primitive::Char(c) => c,
+            _ => unreachable!(),
+        })
+        .collect::<String>();
+
+    let string = std::fs::read_to_string(fp)
+        .map_err(|e| MyriaErr::FileError(e.to_string()))?;
+    Ok(Object::make_str(&string))
 }
 
 fn modulus(args: Vec<Object>) -> Result<Object, MyriaErr> {

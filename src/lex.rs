@@ -150,9 +150,13 @@ impl<'a> Lexer<'a> {
                 self.resolve_whitespace();
                 continue;
             } else if c == '#' {
-                self.resolve_comment();
+                self.resolve_line_comment();
+                continue;
+            } else if c == '/' && self.can_peek_ahead(1) && self.peek_ahead(1) == '*' {
+                self.resolve_block_comment();
                 continue;
             }
+
             let t = if c.is_numeric() {
                 self.resolve_number()
             } else if Self::op_first_chars().contains(&c) {
@@ -199,10 +203,28 @@ impl<'a> Lexer<'a> {
             self.cur_line += 1;
         }
     }
-    fn resolve_comment(&mut self) {
+    fn resolve_line_comment(&mut self) {
         assert!(self.can_peek() && self.peek() == '#');
         while self.can_peek() && self.consume() != '\n' {}
         self.cur_line += 1;
+    }
+    fn resolve_block_comment(&mut self) {
+        assert!(self.can_peek_ahead(1) && self.peek() == '/' && self.peek_ahead(1) == '*');
+        let _slash = self.consume();
+        let _star = self.consume();
+
+        let mut previous = self.consume();
+        let mut depth = 1;
+        while self.can_peek() && depth > 0 {
+            let current = self.consume();
+            match (previous, current) {
+                ('*', '/') => depth -= 1,
+                ('/', '*') => depth += 1,
+                (_, '\n') => self.cur_line += 1,
+                _ => (),
+            }
+            previous = current;
+        }
     }
     fn resolve_number(&mut self) -> Token {
         assert!(self.can_peek() && self.peek().is_numeric());
