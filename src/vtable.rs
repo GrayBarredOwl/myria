@@ -1,11 +1,11 @@
 // use crate::ast::{Expression, Scope};
+use crate::gen::{MyriaErr, MyriaRes};
 use crate::gen::Operator;
 use crate::obj::{Object, Primitive};
-use crate::ast::MyriaErr;
 use core::fmt;
 
-pub type BinOpFn = fn(Primitive, Primitive) -> Result<Object, MyriaErr>;
-pub type UnOpFn = fn(Primitive) -> Result<Object, MyriaErr>;
+pub type BinOpFn = fn(Primitive, Primitive) -> MyriaRes;
+pub type UnOpFn = fn(Primitive) -> MyriaRes;
 #[derive(Clone)]
 pub struct VTable {
     pub add: BinOpFn,
@@ -47,10 +47,12 @@ impl fmt::Debug for VTable {
     }
 }
 
-fn invalid_bn(_: Primitive, _: Primitive) -> Result<Object, MyriaErr> {
-    Err(MyriaErr::InvalidOperation("Invalid binary operation!".into()))
+fn invalid_bn(_: Primitive, _: Primitive) -> MyriaRes {
+    Err(MyriaErr::InvalidOperation(
+        "Invalid binary operation!".into(),
+    ))
 }
-fn invalid_un(_: Primitive) -> Result<Object, MyriaErr> {
+fn invalid_un(_: Primitive) -> MyriaRes {
     Err(MyriaErr::InvalidOperation("Invalid unary operation".into()))
 }
 
@@ -58,7 +60,8 @@ macro_rules! get_prim {
     ($var:expr, $variant:tt) => {
         match $var {
             Primitive::$variant(val) => Ok(val),
-            _ => Err(MyriaErr::InvalidOperation(format!("{} vtable called without {} as arg",
+            _ => Err(MyriaErr::InvalidOperation(format!(
+                "{} vtable called without {} as arg",
                 stringify!($variant),
                 stringify!($variant)
             ))),
@@ -94,7 +97,7 @@ pub fn pick_unfunc(op: Operator, vtable: &VTable) -> UnOpFn {
 
 macro_rules! make_logic_op {
     ($ty:tt, $name:ident, $op:tt) => {
-        fn $name(x: Primitive, y: Primitive) -> Result<Object, MyriaErr> {
+        fn $name(x: Primitive, y: Primitive) -> MyriaRes {
             let x = get_prim!(x, $ty)?;
             let y = get_prim!(y, $ty)?;
             Ok(Object::make_bool(x $op y))
@@ -108,7 +111,7 @@ pub mod int_vtable {
 
     macro_rules! make_arith_op {
         ($name:ident, $op:tt) => {
-            fn $name(x: Primitive, y: Primitive) -> Result<Object, MyriaErr> {
+            fn $name(x: Primitive, y: Primitive) -> MyriaRes {
                 let x = get_prim!(x, Int)?;
                 match y {
                     P::Bool(val) => Ok(Object::make_int(x $op val as i64)),
@@ -138,17 +141,17 @@ pub mod int_vtable {
     make_logic_op!(Int, eq, ==);
     make_logic_op!(Int, lt, <);
 
-    fn div(x: Primitive, y: Primitive) -> Result<Object, MyriaErr> {
+    fn div(x: Primitive, y: Primitive) -> MyriaRes {
         let x = get_prim!(x, Int)?;
         match y {
-            P::Bool(false) | P::Int(0)=> Err(MyriaErr::ZeroDivision),
+            P::Bool(false) | P::Int(0) => Err(MyriaErr::ZeroDivision),
             P::Bool(true) => Ok(Object::make_int(x)),
             P::Int(val) => Ok(Object::make_int(x / val)),
             P::Float(val) => Ok(Object::make_float(x as f64 / val)),
             _ => Err(MyriaErr::InvalidOperation("Invalid operation".into())),
         }
     }
-    fn negt(int: Primitive) -> Result<Object, MyriaErr> {
+    fn negt(int: Primitive) -> MyriaRes {
         let Primitive::Int(val) = int else {
             panic!("Int vtable negate called without an int: {int:?}");
         };
@@ -162,7 +165,7 @@ pub mod bool_vtable {
 
     macro_rules! make_arith_op {
         ($name:ident, $op:tt) => {
-            fn $name(x: Primitive, y: Primitive) -> Result<Object, MyriaErr> {
+            fn $name(x: Primitive, y: Primitive) -> MyriaRes {
                 let x = get_prim!(x, Bool)?;
                 match y {
                     P::Bool(val) => Ok(Object::make_bool((x as i32 $op val as i32) != 0)),
@@ -193,17 +196,17 @@ pub mod bool_vtable {
     make_logic_op!(Bool, eq, ==);
     make_logic_op!(Bool, lt, < );
 
-    fn and(x: Primitive, y: Primitive) -> Result<Object, MyriaErr> {
+    fn and(x: Primitive, y: Primitive) -> MyriaRes {
         let x = get_prim!(x, Bool)?;
         let y = get_prim!(y, Bool)?;
         Ok(Object::make_bool(x && y))
     }
-    fn or(x: Primitive, y: Primitive) -> Result<Object, MyriaErr> {
+    fn or(x: Primitive, y: Primitive) -> MyriaRes {
         let x = get_prim!(x, Bool)?;
         let y = get_prim!(y, Bool)?;
         Ok(Object::make_bool(x || y))
     }
-    fn not(x: Primitive) -> Result<Object, MyriaErr> {
+    fn not(x: Primitive) -> MyriaRes {
         let x = get_prim!(x, Bool)?;
         Ok(Object::make_bool(!x))
     }
@@ -217,8 +220,10 @@ pub mod null_vtable {
         ..VTable::all_invalid()
     };
 
-    fn eq(x: Primitive, y: Primitive) -> Result<Object, MyriaErr> {
-        Ok(Object::make_bool(x == Primitive::Null && y == Primitive::Null))
+    fn eq(x: Primitive, y: Primitive) -> MyriaRes {
+        Ok(Object::make_bool(
+            x == Primitive::Null && y == Primitive::Null,
+        ))
     }
 }
 
@@ -228,7 +233,7 @@ pub mod float_vtable {
 
     macro_rules! make_arith_op {
         ($name:ident, $op:tt) => {
-            fn $name(x: Primitive, y: Primitive) -> Result<Object, MyriaErr> {
+            fn $name(x: Primitive, y: Primitive) -> MyriaRes {
                 let x = get_prim!(x, Float)?;
                 let result = match y {
                     P::Bool(val) => x $op val as i32 as f64,
@@ -259,7 +264,7 @@ pub mod float_vtable {
 
     make_logic_op!(Float, lt, < );
 
-    fn eq(x: Primitive, y: Primitive) -> Result<Object, MyriaErr> {
+    fn eq(x: Primitive, y: Primitive) -> MyriaRes {
         let epsilon = 1e-6;
 
         let x = get_prim!(x, Float)?;
@@ -272,7 +277,7 @@ pub mod float_vtable {
         Ok(Object::make_bool(result))
     }
 
-    fn negt(x: Primitive) -> Result<Object, MyriaErr> {
+    fn negt(x: Primitive) -> MyriaRes {
         let x = get_prim!(x, Float)?;
         Ok(Object::make_float(-x))
     }
@@ -292,7 +297,9 @@ pub mod char_vtable {
 }
 
 pub mod list_vtable {
-    use crate::{ast::MyriaErr, obj::{List, PrimType}};
+    use crate::{
+        obj::{List, PrimType},
+    };
 
     use super::*;
 
@@ -302,7 +309,7 @@ pub mod list_vtable {
         ..VTable::all_invalid()
     };
 
-    fn add(x: Primitive, y: Primitive) -> Result<Object, MyriaErr> {
+    fn add(x: Primitive, y: Primitive) -> MyriaRes {
         let x = get_prim!(x, List)?;
         Ok(match y {
             Primitive::List(lst) => {
@@ -315,26 +322,10 @@ pub mod list_vtable {
             }
         })
     }
-    fn eq(x: Primitive, y: Primitive) -> Result<Object, MyriaErr> {
+    fn eq(x: Primitive, y: Primitive) -> MyriaRes {
         let x = get_prim!(x, List);
         let y = get_prim!(y, List);
         Ok(Object::make_bool(x == y))
-    }
-
-    pub fn index(x: List, i: Object) -> Result<Object, MyriaErr> {
-        if i.get_type() != PrimType::Int {
-            return Err(MyriaErr::InvalidType(i.get_type()));
-        }
-        let i = match i.primitive {
-            Primitive::Int(val) => val,
-            _ => unreachable!(),
-        };
-
-        if i < 0 || i as usize >= x.elems.len() {
-            return Err(MyriaErr::OutOfBounds(i));
-        }
-        let i = i as usize;
-        Ok(x.elems[i].clone())
     }
 }
 

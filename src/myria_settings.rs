@@ -17,11 +17,11 @@ impl MyriaConfig {
         config
     }
     pub fn program_string(&self) -> Option<String> {
-        self.file.as_ref().map(|fp| {
-            match std::fs::read_to_string(fp) {
+        self.file
+            .as_ref()
+            .map(|fp| match std::fs::read_to_string(fp) {
                 Ok(s) => s,
                 Err(err) => panic!("Couldn't read file({}): {err}", fp.display()),
-            }
-        })
+            })
     }
 }

@@ -188,7 +188,7 @@ impl<'a> Parser<'a> {
         type KW = Keyword;
         type TT = TokenType;
 
-        assert!(matches!( self.peek().info, TT::Keyword(KW::Try) ));
+        assert!(matches!(self.peek().info, TT::Keyword(KW::Try)));
         let _try = self.consume();
         let body = self.parse_block();
 

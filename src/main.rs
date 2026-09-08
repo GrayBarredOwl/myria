@@ -1,20 +1,24 @@
-mod myria_settings;
 mod ast;
 mod gen;
 mod lex;
+mod myria_settings;
 mod obj;
 mod parse;
 mod stdlib;
 mod vtable;
 
-use std::{env, io::{self, Write}};
+use std::{
+    env,
+    io::{self, Write},
+};
 
 use {
+    gen::MyriaRes,
+    ast::Scope,
     lex::Lexer,
-    parse::Parser,
-    obj::{Object, Primitive},
-    ast::{Scope, MyriaErr},
     myria_settings::MyriaConfig,
+    obj::Primitive,
+    parse::Parser,
 };
 
 fn main() {
@@ -68,10 +72,10 @@ fn repl() {
     }
 }
 
-fn run_myria(program: &str) -> Result<Object, MyriaErr> {
+fn run_myria(program: &str) -> MyriaRes {
     run_myria_with_scope(program, &mut Scope::default())
 }
-fn run_myria_with_scope(program: &str, scope: &mut Scope) -> Result<Object, MyriaErr> {
+fn run_myria_with_scope(program: &str, scope: &mut Scope) -> MyriaRes {
     let lexer = Lexer::new(program);
     let toks = lexer.tokenize();
     dbg!(&toks);

@@ -1,148 +1,195 @@
-use crate::{ast::MyriaErr, obj::{Object, PrimType, Primitive, RustFunc}};
+use crate::{
+    gen::{MyriaErr, MyriaRes}, obj::{Object, PrimType, Primitive, RustFunc},
+};
 
-pub const FUNCS: &[(&str, RustFunc)] = &[
-    ("print", RustFunc::new(None, print)),
-    ("dbg_print", RustFunc::new(None, dbg_print)),
-    ("exit", RustFunc::new(None, exit)),
-    ("import", RustFunc::new(Some(1), import)),
-    ("file", RustFunc::new(Some(1), file)),
-    ("mod", RustFunc::new(Some(2), modulus)),
-    ("empty", RustFunc::new(Some(0), empty)),
-    ("str", RustFunc::new(Some(1), to_string)),
+pub static FUNCS: &[(&str, RustFunc)] = &[
+    // IO
+    ("print", RustFunc::new(None, io::print)),
+    ("dbg_print", RustFunc::new(None, io::dbg_print)),
+    ("file", RustFunc::new(Some(1), io::file)),
+    // System
+    ("exit", RustFunc::new(None, system::exit)),
+    ("import", RustFunc::new(Some(1), system::import)),
+    // General purpose
+    ("mod", RustFunc::new(Some(2), general::modulus)),
+    ("empty", RustFunc::new(Some(0), general::empty)),
+    ("str", RustFunc::new(Some(1), general::to_string)),
+    ("get", RustFunc::new(Some(2), general::get)),
 ];
 
-fn exit(args: Vec<Object>) -> Result<Object, MyriaErr> {
-    let mut args = args;
-    let ret_val = {
-        if args.is_empty() {
-            0
-        } else {
-            let o = args.swap_remove(0);
-            match PrimType::int_cast(o).primitive {
-                Primitive::Int(i) => i as i32,
-                Primitive::Null => -1,
-                _ => unreachable!(),
-            }
+
+mod io {
+    use super::*;
+    pub fn dbg_print(args: Vec<Object>) -> MyriaRes {
+        println!(
+            "{}",
+            args.iter()
+                .map(|o| format!("{o:?}"))
+                .reduce(|a, val| format!("{a}, {val}"))
+                .unwrap_or_default()
+        );
+        Ok(Object::default())
+    }
+    pub fn print(args: Vec<Object>) -> MyriaRes {
+        println!(
+            "{}",
+            args.iter()
+                .map(ToString::to_string)
+                .reduce(|a, val| format!("{a} {val}"))
+                .unwrap_or_default()
+        );
+        Ok(Object::default())
+    }
+    pub fn file(args: Vec<Object>) -> MyriaRes {
+        let [fp] = &args[..] else {
+            unreachable!();
+        };
+        if !fp.primitive.is_string() {
+            return Err(MyriaErr::InvalidOperation(
+                "file function expects a string".into(),
+            ));
         }
-    };
+        let Primitive::List(fp) = &fp.primitive else {
+            unreachable!();
+        };
+        let fp = fp
+            .elems
+            .iter()
+            .map(|c| match c.primitive {
+                Primitive::Char(c) => c,
+                _ => unreachable!(),
+            })
+            .collect::<String>();
 
-    std::process::exit(ret_val);
-}
-
-fn dbg_print(args: Vec<Object>) -> Result<Object, MyriaErr> {
-    println!(
-        "{}",
-        args.iter()
-            .map(|o| format!("{o:?}"))
-            .reduce(|a, val| format!("{a}, {val}"))
-            .unwrap_or_default()
-    );
-    Ok(Object::default())
-}
-fn print(args: Vec<Object>) -> Result<Object, MyriaErr> {
-    println!(
-        "{}",
-        args.iter()
-            .map(ToString::to_string)
-            .reduce(|a, val| format!("{a} {val}"))
-            .unwrap_or_default()
-    );
-    Ok(Object::default())
-}
-
-
-fn import(args: Vec<Object>) -> Result<Object, MyriaErr> {
-    use crate::gen;
-    use crate::obj::Primitive;
-
-    let [fp] = &args[..] else {
-        unreachable!();
-    };
-    if !is_string(&fp.primitive) {
-        return Err(MyriaErr::InvalidOperation("import must take a string".into()));
+        let string = std::fs::read_to_string(fp).map_err(|e| MyriaErr::FileError(e.to_string()))?;
+        Ok(Object::make_str(&string))
     }
-    let Primitive::List(fp) = &fp.primitive else {
-        unreachable!();
-    };
+}
 
-    if fp.elems.is_empty() {
-        return Err(MyriaErr::InvalidOperation("import must take a non-zero length string".into()));
+mod system {
+    use super::*;
+    pub fn exit(args: Vec<Object>) -> MyriaRes {
+        let mut args = args;
+        let ret_val = {
+            if args.is_empty() {
+                0
+            } else {
+                let o = args.swap_remove(0);
+                match PrimType::int_cast(o).primitive {
+                    Primitive::Int(i) => i as i32,
+                    Primitive::Null => -1,
+                    _ => unreachable!(),
+                }
+            }
+        };
+
+        std::process::exit(ret_val);
     }
 
-    let mut fp = fp.elems
-        .iter()
-        .map(|c| match c.primitive {
-            Primitive::Char(c) => c,
-            _ => unreachable!(),
-        })
-        .collect::<String>();
-    fp.push_str(crate::gen::EXTENSION);
+    pub fn import(args: Vec<Object>) -> MyriaRes {
+        use crate::gen;
+        use crate::obj::Primitive;
 
-    gen::run_file(&fp)
+        let [fp] = &args[..] else {
+            unreachable!();
+        };
+        if !fp.primitive.is_string() {
+            return Err(MyriaErr::InvalidOperation(
+                "import must take a string".into(),
+            ));
+        }
+        let Primitive::List(fp) = &fp.primitive else {
+            unreachable!();
+        };
+
+        if fp.elems.is_empty() {
+            return Err(MyriaErr::InvalidOperation(
+                "import must take a non-zero length string".into(),
+            ));
+        }
+
+        let mut fp = fp
+            .elems
+            .iter()
+            .map(|c| match c.primitive {
+                Primitive::Char(c) => c,
+                _ => unreachable!(),
+            })
+            .collect::<String>();
+        fp.push_str(crate::gen::EXTENSION);
+
+        gen::run_file(&fp)
+    }
 }
 
-fn file(args: Vec<Object>) -> Result<Object, MyriaErr> {
-    let [fp] = &args[..] else {
-        unreachable!();
-    };
-    if !is_string(&fp.primitive) {
-        return Err(MyriaErr::InvalidOperation("file function expects a string".into()));
-    }
-    let Primitive::List(fp) = &fp.primitive else {
-        unreachable!();
-    };
-    let fp = fp.elems
-        .iter()
-        .map(|c| match c.primitive {
-            Primitive::Char(c) => c,
-            _ => unreachable!(),
-        })
-        .collect::<String>();
-
-    let string = std::fs::read_to_string(fp)
-        .map_err(|e| MyriaErr::FileError(e.to_string()))?;
-    Ok(Object::make_str(&string))
-}
-
-fn modulus(args: Vec<Object>) -> Result<Object, MyriaErr> {
-    if args.len() != 2 {
-        panic!("mod function takes 2 arguments, not {}", args.len());
-    }
-    type P = Primitive;
-    match args[0].primitive {
-        P::Int(x) => match args[1].primitive {
-            P::Int(y) => Ok(Object::make_int(x % y)),
-            P::Float(y) => Ok(Object::make_float(x as f64 % y)),
+mod general {
+    use super::*;
+    pub fn modulus(args: Vec<Object>) -> MyriaRes {
+        if args.len() != 2 {
+            panic!("mod function takes 2 arguments, not {}", args.len());
+        }
+        type P = Primitive;
+        match args[0].primitive {
+            P::Int(x) => match args[1].primitive {
+                P::Int(y) => Ok(Object::make_int(x % y)),
+                P::Float(y) => Ok(Object::make_float(x as f64 % y)),
+                _ => Err(MyriaErr::InvalidOperation(format!(
+                    "mod function only takes ints and floats, not {:?}",
+                    args[1].get_type()
+                ))),
+            },
+            P::Float(x) => match args[1].primitive {
+                P::Int(y) => Ok(Object::make_float(x % y as f64)),
+                P::Float(y) => Ok(Object::make_float(x % y)),
+                _ => Err(MyriaErr::InvalidOperation(format!(
+                    "mod function only takes ints and floats, not {:?}",
+                    args[1].get_type()
+                ))),
+            },
             _ => Err(MyriaErr::InvalidOperation(format!(
                 "mod function only takes ints and floats, not {:?}",
-                args[1].get_type()
+                args[0].get_type()
             ))),
-        },
-        P::Float(x) => match args[1].primitive {
-            P::Int(y) => Ok(Object::make_float(x % y as f64)),
-            P::Float(y) => Ok(Object::make_float(x % y)),
-            _ => Err(MyriaErr::InvalidOperation(
-                format!("mod function only takes ints and floats, not {:?}",
-                args[1].get_type()))),
-        },
-        _ => Err(MyriaErr::InvalidOperation(
-            format!("mod function only takes ints and floats, not {:?}",
-            args[0].get_type()))),
+        }
     }
-}
-fn empty(args: Vec<Object>) -> Result<Object, MyriaErr> {
-    assert!(args.is_empty());
-    Ok(Object::make_inst())
-}
+    pub fn empty(args: Vec<Object>) -> MyriaRes {
+        assert!(args.is_empty());
+        Ok(Object::make_inst())
+    }
 
-fn to_string(args: Vec<Object>) -> Result<Object, MyriaErr> {
-    assert!(args.len() == 1);
-    Ok(Object::make_str(&args[0].to_string()))
-}
+    pub fn to_string(args: Vec<Object>) -> MyriaRes {
+        assert!(args.len() == 1);
+        Ok(Object::make_str(&args[0].to_string()))
+    }
+    pub fn get(args: Vec<Object>) -> MyriaRes {
+        assert!(args.len() == 2);
+        if args[0].get_type() != PrimType::List {
+            Err(MyriaErr::InvalidOperation("Can not index non-List".into()))
+        } else if args[1].get_type() != PrimType::Int {
+            Err(MyriaErr::InvalidOperation("Index must be an Int".into()))
+        } else {
+            let Primitive::List(l) = &args[0].primitive else {
+                unreachable!();
+            };
+            let Primitive::Int(mut index) = args[1].primitive else {
+                unreachable!();
+            };
+            
+            if index >= l.elems.len() as i64 {
+                return Err(MyriaErr::OutOfBounds(index))
+            }
+            if index < 0 {
+                index += l.elems.len() as i64;
+            }
 
-fn is_string(p: &Primitive) -> bool {
-    match p {
-        Primitive::List(l) => l.ltype == Some(PrimType::Char),
-        _ => false,
+            if index < 0 {
+                Err(MyriaErr::OutOfBounds(index - l.elems.len() as i64))
+            } else {
+                Ok(l.elems[index as usize].clone())
+            }
+        }
+    }
+    pub fn replace(args: Vec<Object>) -> MyriaRes {
+        todo!()
     }
 }

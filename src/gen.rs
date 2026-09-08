@@ -1,3 +1,4 @@
+use std::error::Error;
 use std::{collections::HashMap, sync::OnceLock};
 
 pub const EXTENSION: &str = ".myria";
@@ -128,13 +129,47 @@ pub fn operators() -> &'static HashMap<&'static str, Operator> {
     })
 }
 
-use crate::ast::{MyriaErr, Scope};
-use crate::obj::Object;
+#[derive(Debug, PartialEq, Clone)]
+#[allow(unused)] // Data is used in debug printing, but Rust thinks the data is not used
+pub enum MyriaErr {
+    VariableDNE(String),
+    VariableNotInit(String),
+    VariableAlreadyExists(String),
+    VariableNotMut(String),
+    Thrown(Object),
 
-pub fn run_file(fp: &str) -> Result<Object, MyriaErr> {
+    ZeroDivision,
+    BadFunctionArgumentCount(BadFnArgCnt),
+    OutOfBounds(i64),
+    InvalidType(PrimType),
+    FileError(String),
+    InvalidOperation(String),
+}
+impl std::fmt::Display for MyriaErr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{self:?}")
+    }
+}
+impl Error for MyriaErr {}
+
+pub type MyriaRes = Result<Object, MyriaErr>;
+
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct BadFnArgCnt {
+    pub param_count: usize,
+    pub arg_count: usize,
+}
+
+
+
+
+use crate::ast::Scope;
+use crate::obj::{Object, PrimType};
+
+pub fn run_file(fp: &str) -> MyriaRes {
     run_file_with(fp, &mut Scope::default())
 }
-pub fn run_file_with(fp: &str, scope: &mut Scope) -> Result<Object, MyriaErr> {
+pub fn run_file_with(fp: &str, scope: &mut Scope) -> MyriaRes {
     use crate::{lex::Lexer, parse::Parser};
     use std::fs;
 

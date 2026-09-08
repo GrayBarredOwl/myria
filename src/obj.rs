@@ -1,4 +1,5 @@
-use crate::ast::{Expression, MyriaErr, Scope};
+use crate::ast::{Expression, Scope};
+use crate::gen::{MyriaRes, MyriaErr};
 use crate::vtable::{self, VTable};
 
 #[derive(Debug, Default, PartialEq, Clone)]
@@ -378,16 +379,28 @@ impl Primitive {
             Self::Instance(_) => true,
         }
     }
+    pub fn is_string(&self) -> bool {
+        matches!(
+            self,
+            Self::List(List {
+                ltype: Some(PrimType::Char),
+                ..
+            })
+        )
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[allow(unpredictable_function_pointer_comparisons)]
 pub struct RustFunc {
     pub num_args: Option<i64>,
-    pub fn_ptr: fn(Vec<Object>) -> Result<Object, MyriaErr>,
+    pub fn_ptr: fn(Vec<Object>) -> MyriaRes,
 }
 impl RustFunc {
-    pub const fn new(num_args: Option<i64>, fn_ptr: fn(Vec<Object>) -> Result<Object, MyriaErr>) -> Self {
+    pub const fn new(
+        num_args: Option<i64>,
+        fn_ptr: fn(Vec<Object>) -> MyriaRes,
+    ) -> Self {
         Self { num_args, fn_ptr }
     }
 }

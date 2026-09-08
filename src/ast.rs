@@ -1,9 +1,8 @@
-use crate::ast::MyriaErr::InvalidOperation;
+use crate::gen::{MyriaErr, MyriaRes, BadFnArgCnt};
 use crate::gen::Operator;
 use crate::obj::{Object, PrimType, Primitive};
 use crate::vtable::{pick_binfunc, pick_unfunc};
 use std::collections::HashMap;
-use std::error::Error;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct IfExpr {
@@ -58,33 +57,7 @@ impl Default for Expression {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
-pub enum MyriaErr {
-    VariableDNE(String),
-    VariableNotInit(String),
-    VariableAlreadyExists(String),
-    VariableNotMut(String),
-    Thrown(Object),
 
-    ZeroDivision,
-    BadFunctionArgumentCount(BadFnArgCnt),
-    OutOfBounds(i64),
-    InvalidType(PrimType),
-    FileError(String),
-    InvalidOperation(String),
-}
-impl std::fmt::Display for MyriaErr {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{self:?}")
-    }
-}
-impl Error for MyriaErr {
-}
-#[derive(Debug, Default, Clone, PartialEq)]
-struct BadFnArgCnt {
-    param_count: usize,
-    arg_count: usize,
-}
 
 #[derive(Default, Debug, Clone, PartialEq)]
 pub struct VarData {
@@ -179,16 +152,23 @@ impl Scope {
             };
             let base_var = self.get_once(base)?;
             let Primitive::Instance(fields) = base_var.value.primitive else {
-                return Err(MyriaErr::InvalidOperation("Can not get fields of non-Instance".into()));
+                return Err(MyriaErr::InvalidOperation(
+                    "Can not get fields of non-Instance".into(),
+                ));
             };
             fields.get(rest)
         }
     }
     fn get_once(&self, name: &str) -> Result<VarData, MyriaErr> {
-        self.vars.get(name).cloned().ok_or(MyriaErr::VariableDNE(name.to_string()))
+        self.vars
+            .get(name)
+            .cloned()
+            .ok_or(MyriaErr::VariableDNE(name.to_string()))
     }
     fn get_once_mut(&mut self, name: &str) -> Result<&mut VarData, MyriaErr> {
-        self.vars.get_mut(name).ok_or(MyriaErr::VariableDNE(name.to_string()))
+        self.vars
+            .get_mut(name)
+            .ok_or(MyriaErr::VariableDNE(name.to_string()))
     }
     fn var_exists(&self, name: &str) -> bool {
         if !name.contains('.') {
@@ -216,7 +196,9 @@ impl Scope {
             };
             let base_var = self.get_once_mut(base)?;
             let Primitive::Instance(ref mut fields) = base_var.value.primitive else {
-                return Err(MyriaErr::InvalidOperation("Can not set fields of non-Instance".into()));
+                return Err(MyriaErr::InvalidOperation(
+                    "Can not set fields of non-Instance".into(),
+                ));
             };
             fields.set(rest, value)
         }
@@ -241,7 +223,9 @@ impl Scope {
             };
             let base_var = self.get_once_mut(base)?;
             let Primitive::Instance(ref mut fields) = base_var.value.primitive else {
-                return Err(MyriaErr::InvalidOperation("Can not create field on non-Instance".into()));
+                return Err(MyriaErr::InvalidOperation(
+                    "Can not create field on non-Instance".into(),
+                ));
             };
             // dbg!(rest, &config);
             fields.create_with_config(rest, config)
@@ -254,7 +238,7 @@ impl Expression {
     // pub fn resolve(self) -> Object {
     //     self.evaluate(&mut Scope::default())
     // }
-    pub fn evaluate(self, scope: &mut Scope) -> Result<Object, MyriaErr> {
+    pub fn evaluate(self, scope: &mut Scope) -> MyriaRes {
         match self {
             Self::Value(data) => Ok(data),
             Self::Variable(name) => {
@@ -284,11 +268,10 @@ impl Expression {
                     }
                 }
             }
-            Self::Try(try_obj) => {
-                try_obj.body
-                    .evaluate(scope)
-                    .or_else(|_| try_obj.catch.evaluate(scope))
-            }
+            Self::Try(try_obj) => try_obj
+                .body
+                .evaluate(scope)
+                .or_else(|_| try_obj.catch.evaluate(scope)),
             Self::Throw(throw_obj) => {
                 let value = throw_obj.evaluate(scope)?;
                 Err(MyriaErr::Thrown(value))
@@ -327,7 +310,9 @@ impl Expression {
                 if scope.var_exists(&name) {
                     Err(MyriaErr::VariableAlreadyExists(name))
                 } else {
-                    scope.create_with_config(&name, config).map(|_| Object::default())
+                    scope
+                        .create_with_config(&name, config)
+                        .map(|_| Object::default())
                 }
             }
 
@@ -363,17 +348,19 @@ impl Expression {
     }
 }
 
-fn assign(left: Expression, right: Expression, scope: &mut Scope) -> Result<Object, MyriaErr> {
+fn assign(left: Expression, right: Expression, scope: &mut Scope) -> MyriaRes {
     let value = right.evaluate(scope)?;
     let Expression::Variable(name) = left else {
-        return Err(MyriaErr::InvalidOperation("Can not assign to non-variable".into()));
+        return Err(MyriaErr::InvalidOperation(
+            "Can not assign to non-variable".into(),
+        ));
     };
     scope.set(&name, value)?;
 
     Ok(Object::default())
 }
 
-fn function_call(vec: Vec<Expression>, scope: &mut Scope) -> Result<Object, MyriaErr> {
+fn function_call(vec: Vec<Expression>, scope: &mut Scope) -> MyriaRes {
     use crate::obj::{Function, LangFunc, RustFunc};
 
     assert!(!vec.is_empty());
@@ -384,12 +371,14 @@ fn function_call(vec: Vec<Expression>, scope: &mut Scope) -> Result<Object, Myri
     match func.primitive.clone() {
         P::Type(ty) => {
             if args.len() != 1 {
-                return Err(InvalidOperation("Can not cast more than one value at a time".into()));
+                return Err(MyriaErr::InvalidOperation(
+                    "Can not cast more than one value at a time".into(),
+                ));
             }
             let mut vec = vec;
             let arg = vec.swap_remove(1);
             Ok(ty.cast(arg.evaluate(scope)?))
-        }
+        } 
         P::Function(Function::LangFn(lfunc)) => {
             let LangFunc {
                 params,
@@ -403,10 +392,10 @@ fn function_call(vec: Vec<Expression>, scope: &mut Scope) -> Result<Object, Myri
                     arg_count: args.len(),
                 }));
                 // panic!(
-                    // "Function called with incorrect number of arguments({} instead of {}): {:?}",
-                    // args.len(),
-                    // params.len(),
-                    // args,
+                // "Function called with incorrect number of arguments({} instead of {}): {:?}",
+                // args.len(),
+                // params.len(),
+                // args,
                 // );
             }
 
@@ -433,6 +422,8 @@ fn function_call(vec: Vec<Expression>, scope: &mut Scope) -> Result<Object, Myri
                 .collect::<Result<Vec<Object>, MyriaErr>>()?;
             fn_ptr(args)
         }
-        _ => Err(MyriaErr::InvalidOperation("Can not call non-function: {func:?}".into())),
+        _ => Err(MyriaErr::InvalidOperation(
+            "Can not call non-function: {func:?}".into(),
+        )),
     }
 }
