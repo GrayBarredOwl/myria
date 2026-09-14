@@ -1,6 +1,6 @@
 // use crate::ast::{Expression, Scope};
-use crate::gen::{MyriaErr, MyriaRes};
 use crate::gen::Operator;
+use crate::gen::{MyriaErr, MyriaRes};
 use crate::obj::{Object, Primitive};
 use core::fmt;
 
@@ -297,10 +297,6 @@ pub mod char_vtable {
 }
 
 pub mod list_vtable {
-    use crate::{
-        obj::{List, PrimType},
-    };
-
     use super::*;
 
     pub static VTABLE: VTable = VTable {

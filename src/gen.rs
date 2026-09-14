@@ -160,9 +160,6 @@ pub struct BadFnArgCnt {
     pub arg_count: usize,
 }
 
-
-
-
 use crate::ast::Scope;
 use crate::obj::{Object, PrimType};
 
@@ -170,14 +167,20 @@ pub fn run_file(fp: &str) -> MyriaRes {
     run_file_with(fp, &mut Scope::default())
 }
 pub fn run_file_with(fp: &str, scope: &mut Scope) -> MyriaRes {
-    use crate::{lex::Lexer, parse::Parser};
     use std::fs;
-
     let program = fs::read_to_string(fp).map_err(|er| MyriaErr::FileError(er.to_string()))?;
-    let tokens = Lexer::new(&program).tokenize();
-
-    let expr = Parser::new(&tokens).parse();
+    run_myria_with_scope(&program, scope)
+}
+pub fn run_myria_with_scope(program: &str, scope: &mut Scope) -> MyriaRes {
+    use crate::{Lexer, Parser};
+    let toks = Lexer::new(program).tokenize();
+    dbg!(&toks);
+    let expr = Parser::new(&toks).parse();
+    dbg!(&expr);
     expr.evaluate(scope)
+}
+pub fn run_myria(program: &str) -> MyriaRes {
+    run_myria_with_scope(program, &mut Scope::default())
 }
 
 pub fn print_error(err: MyriaErr) {

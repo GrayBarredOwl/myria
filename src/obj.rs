@@ -1,5 +1,5 @@
 use crate::ast::{Expression, Scope};
-use crate::gen::{MyriaRes, MyriaErr};
+use crate::gen::MyriaRes;
 use crate::vtable::{self, VTable};
 
 #[derive(Debug, Default, PartialEq, Clone)]
@@ -397,10 +397,7 @@ pub struct RustFunc {
     pub fn_ptr: fn(Vec<Object>) -> MyriaRes,
 }
 impl RustFunc {
-    pub const fn new(
-        num_args: Option<i64>,
-        fn_ptr: fn(Vec<Object>) -> MyriaRes,
-    ) -> Self {
+    pub const fn new(num_args: Option<i64>, fn_ptr: fn(Vec<Object>) -> MyriaRes) -> Self {
         Self { num_args, fn_ptr }
     }
 }

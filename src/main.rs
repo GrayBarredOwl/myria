@@ -13,30 +13,26 @@ use std::{
 };
 
 use {
-    gen::MyriaRes,
-    ast::Scope,
-    lex::Lexer,
-    myria_settings::MyriaConfig,
-    obj::Primitive,
+    ast::Scope, gen::{run_myria, run_myria_with_scope}, lex::Lexer, myria_settings::MyriaConfig, obj::Primitive,
     parse::Parser,
 };
 
 fn main() {
     let config = MyriaConfig::from_args(env::args());
     let Some(program) = config.program_string() else {
-        repl();
+        repl(Scope::default());
         return;
     };
     dbg!("{}\n", &program);
+    config.load_libs_to_rsc();
+
     match run_myria(&program) {
         Ok(result) => println!("Result: {result}"),
         Err(err) => gen::print_error(err),
     }
 }
 
-fn repl() {
-    let mut scope = Scope::default();
-
+fn repl(mut scope: Scope) {
     loop {
         print!("> ");
         io::stdout().flush().unwrap();
@@ -70,17 +66,4 @@ fn repl() {
             Err(err) => gen::print_error(err),
         }
     }
-}
-
-fn run_myria(program: &str) -> MyriaRes {
-    run_myria_with_scope(program, &mut Scope::default())
-}
-fn run_myria_with_scope(program: &str, scope: &mut Scope) -> MyriaRes {
-    let lexer = Lexer::new(program);
-    let toks = lexer.tokenize();
-    dbg!(&toks);
-    let parser = Parser::new(&toks);
-    let expr = parser.parse();
-    dbg!(&expr);
-    expr.evaluate(scope)
 }

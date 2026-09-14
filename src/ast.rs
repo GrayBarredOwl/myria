@@ -1,5 +1,5 @@
-use crate::gen::{MyriaErr, MyriaRes, BadFnArgCnt};
 use crate::gen::Operator;
+use crate::gen::{BadFnArgCnt, MyriaErr, MyriaRes};
 use crate::obj::{Object, PrimType, Primitive};
 use crate::vtable::{pick_binfunc, pick_unfunc};
 use std::collections::HashMap;
@@ -57,8 +57,6 @@ impl Default for Expression {
     }
 }
 
-
-
 #[derive(Default, Debug, Clone, PartialEq)]
 pub struct VarData {
     pub is_const: bool,
@@ -101,9 +99,7 @@ pub struct Scope {
 
 impl Default for Scope {
     fn default() -> Self {
-        let mut ret = Self {
-            vars: HashMap::new(),
-        };
+        let mut ret = Self::empty();
         ret.push_const("true".into(), Object::make_bool(true));
         ret.push_const("false".into(), Object::make_bool(false));
         ret.push_const("null".into(), Object::make_null());
@@ -136,13 +132,13 @@ impl Scope {
             vars: Default::default(),
         }
     }
-    fn push_var(&mut self, name: String, value: Object) {
+    pub fn push_var(&mut self, name: String, value: Object) {
         self.vars.insert(name, VarData::make_var(value));
     }
-    fn push_const(&mut self, name: String, value: Object) {
+    pub fn push_const(&mut self, name: String, value: Object) {
         self.vars.insert(name, VarData::make_constant(value));
     }
-    fn get(&self, name: &str) -> Result<VarData, MyriaErr> {
+    pub fn get(&self, name: &str) -> Result<VarData, MyriaErr> {
         // dbg!(name);
         if !name.contains('.') {
             self.get_once(name)
@@ -378,7 +374,7 @@ fn function_call(vec: Vec<Expression>, scope: &mut Scope) -> MyriaRes {
             let mut vec = vec;
             let arg = vec.swap_remove(1);
             Ok(ty.cast(arg.evaluate(scope)?))
-        } 
+        }
         P::Function(Function::LangFn(lfunc)) => {
             let LangFunc {
                 params,
@@ -406,24 +402,29 @@ fn function_call(vec: Vec<Expression>, scope: &mut Scope) -> MyriaRes {
             }
             body.evaluate(&mut fn_scope)
         }
-        P::Function(Function::RustFn(RustFunc { num_args, fn_ptr })) => {
-            match num_args {
-                Some(arg_count) if arg_count as usize != args.len() => panic!(
-                    "Function called with {} but takes {} amount of arguments",
-                    args.len(),
-                    arg_count,
-                ),
-                _ => (),
-            };
+        P::Function(Function::RustFn(rf)) => {
             let args = vec
                 .into_iter()
                 .skip(1)
                 .map(|arg| arg.evaluate(scope))
                 .collect::<Result<Vec<Object>, MyriaErr>>()?;
-            fn_ptr(args)
+            function_call_rust(rf, args)
         }
         _ => Err(MyriaErr::InvalidOperation(
             "Can not call non-function: {func:?}".into(),
         )),
     }
+}
+
+use crate::obj::RustFunc;
+pub fn function_call_rust(RustFunc { num_args, fn_ptr }: RustFunc, args: Vec<Object>) -> MyriaRes {
+    match num_args {
+        Some(arg_count) if arg_count as usize != args.len() => panic!(
+            "Function called with {} but takes {} amount of arguments",
+            args.len(),
+            arg_count,
+        ),
+        _ => (),
+    };
+    fn_ptr(args)
 }

@@ -18,3 +18,18 @@ let ClassName = func(x, y) {
 #     let self.method = func(self, ...) { ... }
 #     self
 # }
+
+
+class File {
+    let self.fd = null
+
+    let self.open = func(f, path) {
+        self.fd = rsc("open", [path])
+    }
+    let self.close = func(f) {
+        rsc("close", [f.fd])
+        null
+    }
+    let self.read = func(f, bytes) {
+    }
+}

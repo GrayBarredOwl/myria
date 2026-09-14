@@ -6,7 +6,7 @@ Classes:
 Order of operations / Better parsing
 ~~New extension and Name~~
 Having the left of a binary expression be compound ( [ 1 ] != [ 2 ], inline function calls )
-List indexing
+~~List indexing~~
 ~~Nested commas (like function calls in function calls, or function calls in list literals)~~
 Rust and/or C API
 Better import
@@ -23,3 +23,10 @@ Variadic function syntax
 ~~Better error messages~~
 ~~Better place for todo list to exist~~
 
+
+Rust / C API
+For each loop
+File IO
+
+
+Can now add functions to rsc. This allows for 'private' functions, that programmers are discouraged from using directly, except when wrapped in myria functions. Just need to allow rust libraries to call register
