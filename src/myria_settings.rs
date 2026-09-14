@@ -1,6 +1,7 @@
 use std::{env, path::PathBuf};
 
-use crate::{myria_settings::lib_load::Library, obj::RustFunc};
+use crate::{myria_settings::lib_load::Library};
+use myria::obj::RustFunc;
 
 #[derive(Debug, Default)]
 pub struct MyriaConfig {
@@ -29,13 +30,14 @@ impl MyriaConfig {
             })
     }
     pub fn load_libs_to_rsc(&mut self) {
-        use crate::stdlib::{init_dyn_funcs, register_function};
+        use myria::stdlib::{init_dyn_funcs, register_function};
 
         init_dyn_funcs();
         for lib_path in &self.dylibs {
             let lib = Library::new(lib_path.as_str(), lib_load::RTLD_NOW)
                 .expect("Could not load library");
 
+            // load function pointer to grab exported functions
             let loader = match lib.get_sym("load") {
                 Some(ptr) => ptr,
                 None => {
@@ -43,12 +45,23 @@ impl MyriaConfig {
                     continue;
                 }
             };
-
-            let loader: unsafe extern "C" fn() -> Vec<(String, RustFunc)> =
+            let loader: fn() -> Vec<(String, RustFunc)> =
                 unsafe { std::mem::transmute(loader.as_ptr()) };
+            
+            let plugin_name = match lib.get_sym("name") {
+                Some(ptr) => ptr,
+                None => {
+                    eprintln!("Library '{lib_path}' does not contain 'name' function");
+                    continue;
+                }
+            };
+            let plugin_name: fn() -> String =
+                unsafe { std::mem::transmute(plugin_name.as_ptr()) }; 
+            let plugin_name = plugin_name();
 
-            for (name, rf) in unsafe { loader() } {
-                register_function(name, rf);
+
+            for (name, rf) in loader() {
+                register_function(format!("{plugin_name}.{name}"), rf);
             }
 
             self.open_dylibs.push(lib);

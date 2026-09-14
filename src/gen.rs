@@ -172,7 +172,7 @@ pub fn run_file_with(fp: &str, scope: &mut Scope) -> MyriaRes {
     run_myria_with_scope(&program, scope)
 }
 pub fn run_myria_with_scope(program: &str, scope: &mut Scope) -> MyriaRes {
-    use crate::{Lexer, Parser};
+    use crate::{lex::Lexer, parse::Parser};
     let toks = Lexer::new(program).tokenize();
     dbg!(&toks);
     let expr = Parser::new(&toks).parse();

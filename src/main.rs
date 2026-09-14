@@ -1,25 +1,17 @@
-mod ast;
-mod gen;
-mod lex;
 mod myria_settings;
-mod obj;
-mod parse;
-mod stdlib;
-mod vtable;
 
 use std::{
     env,
     io::{self, Write},
 };
 
-use {
+use myria::{
     ast::Scope,
-    gen::{run_myria, run_myria_with_scope},
-    lex::Lexer,
-    myria_settings::MyriaConfig,
+    gen::{self, run_myria, run_myria_with_scope},
     obj::Primitive,
-    parse::Parser,
 };
+
+use myria_settings::MyriaConfig;
 
 fn main() {
     let mut config = MyriaConfig::from_args(env::args());

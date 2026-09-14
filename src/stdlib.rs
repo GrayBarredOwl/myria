@@ -11,6 +11,7 @@ pub static FUNCS: &[(&str, RustFunc)] = &[
     // System
     ("exit", RustFunc::new(None, system::exit)),
     ("rsc", RustFunc::new(None, system::rust_call)),
+    ("list_rsc", RustFunc::new(Some(0), system::list_dy_funcs)),
     ("eval", RustFunc::new(Some(1), system::eval)),
     ("import", RustFunc::new(Some(1), system::import)),
     // General purpose
@@ -21,10 +22,11 @@ pub static FUNCS: &[(&str, RustFunc)] = &[
     ("replace", RustFunc::new(Some(3), general::replace)),
 ];
 
+
 use std::{collections::HashMap, sync::OnceLock};
 static mut DY_FUNCS: OnceLock<HashMap<String, RustFunc>> = OnceLock::new();
 pub fn init_dyn_funcs() {
-    unsafe { DY_FUNCS.set(HashMap::new()) };
+    unsafe { DY_FUNCS.set(HashMap::new()).unwrap() };
 }
 pub fn dynamic_functions() -> &'static HashMap<String, RustFunc> {
     unsafe {
@@ -39,7 +41,9 @@ unsafe fn get_dyn_fns_mut() -> &'static mut HashMap<String, RustFunc> {
 
 pub fn register_function(name: String, func: RustFunc) {
     let funcs = unsafe { get_dyn_fns_mut() };
-    funcs.insert(name, func).expect("Function already exists");
+    if funcs.insert(name.clone(), func).is_some() {
+        panic!("Function already exists: {name}");
+    }
 }
 mod io {
     use super::*;
@@ -198,6 +202,12 @@ mod system {
         let fn_args = args.into_iter().skip(1).collect();
 
         function_call_rust(rf, fn_args)
+    }
+    pub fn list_dy_funcs(_args: Vec<Object>) -> MyriaRes {
+        let func_names = dynamic_functions().keys()
+            .map(|s| Object::make_str(&s))
+            .collect::<Vec<_>>();
+        Ok(Object::make_list(func_names))
     }
 }
 

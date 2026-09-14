@@ -24,7 +24,8 @@ Variadic function syntax
 ~~Better place for todo list to exist~~
 
 
-Rust / C API
+~~Rust / C API~~
+Transition standard library into a prelude and plugin
 For each loop
 File IO
 
