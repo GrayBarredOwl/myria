@@ -1,14 +1,12 @@
-use std::{
-    env,
-    path::{Path, PathBuf},
-};
+use std::{env, path::PathBuf};
 
-use crate::ast::Scope;
+use crate::{myria_settings::lib_load::Library, obj::RustFunc};
 
 #[derive(Debug, Default)]
 pub struct MyriaConfig {
     file: Option<PathBuf>,
     dylibs: Vec<LibInfo>,
+    open_dylibs: Vec<Library>,
     // future flags
 }
 impl MyriaConfig {
@@ -30,16 +28,33 @@ impl MyriaConfig {
                 Err(err) => panic!("Couldn't read file({}): {err}", fp.display()),
             })
     }
-    pub fn load_libs_to_rsc(&self) {
+    pub fn load_libs_to_rsc(&mut self) {
         use crate::stdlib::{init_dyn_funcs, register_function};
 
-        init_dyn_funcs();;
+        init_dyn_funcs();
         for lib_path in &self.dylibs {
-            let lib_path = lib_path.as_path();
-            todo!()
-            // register_function(name, func);
-        } 
+            let lib = Library::new(lib_path.as_str(), lib_load::RTLD_NOW)
+                .expect("Could not load library");
+
+            let loader = match lib.get_sym("load") {
+                Some(ptr) => ptr,
+                None => {
+                    eprintln!("Library '{lib_path}' does not contain 'load' function");
+                    continue;
+                }
+            };
+
+            let loader: unsafe extern "C" fn() -> Vec<(String, RustFunc)> =
+                unsafe { std::mem::transmute(loader.as_ptr()) };
+
+            for (name, rf) in unsafe { loader() } {
+                register_function(name, rf);
+            }
+
+            self.open_dylibs.push(lib);
+        }
     }
+
     fn process_arg(&mut self, cur_arg: &str, rem_args: &mut std::env::Args) {
         match cur_arg {
             "--lib" => {
@@ -60,9 +75,74 @@ impl MyriaConfig {
         }
     }
 }
-type LibInfo = PathBuf;
+type LibInfo = String;
 // #[derive(Debug, Clone)]
 // struct LibInfo {
 // path: PathBuf,
 // name: Option<String>,
 // }
+
+#[cfg(target_os = "macos")]
+mod lib_load {
+    use std::{
+        ffi::{c_char, c_int, c_void, CString},
+        ptr::NonNull,
+    };
+    extern "C" {
+        fn dlopen(path: *const c_char, mode: c_int) -> *mut c_void;
+        fn dlclose(handle: *mut c_void) -> c_int;
+        fn dlsym(handle: *mut c_void, symbol: *const c_char) -> *mut c_void;
+        fn dlerror() -> *const c_char;
+        fn puts(string: *const c_char) -> c_int; // should use with stderr, future feature
+    }
+
+    #[cfg(target_os = "macos")]
+    pub const RTLD_LAZY: c_int = 1;
+    #[cfg(target_os = "macos")]
+    pub const RTLD_NOW: c_int = 2;
+
+    #[derive(Debug)]
+    pub struct Library {
+        handle: NonNull<c_void>,
+    }
+
+    impl Library {
+        pub fn new(path: &str, mode: c_int) -> Option<Self> {
+            let cpath = CString::new(path).ok()?;
+
+            let handle = unsafe { dlopen(cpath.as_ptr(), mode) };
+            if handle.is_null() {
+                print_dl_err("dlopen err: ");
+                None
+            } else {
+                Some(Library { handle: unsafe { NonNull::new_unchecked(handle) } })
+            }
+        }
+        pub fn get_sym(&self, name: &str) -> Option<NonNull<c_void>> {
+            let name = CString::new(name).expect("Could not convert &str to CString");
+            let sym_ptr = unsafe { dlsym(self.handle.as_ptr(), name.as_ptr()) };
+            if sym_ptr.is_null() {
+                print_dl_err("dlsym err: ");
+                None
+            } else {
+                Some(unsafe { NonNull::new_unchecked(sym_ptr) })
+            }
+        }
+    }
+
+    impl Drop for Library {
+        fn drop(&mut self) {
+            unsafe {
+                if dlclose(self.handle.as_ptr()) != 0 {
+                    print_dl_err("dlclose err: ");
+                }
+            }
+        }
+    }
+
+    fn print_dl_err(prefix: &str) {
+        let err_msg = unsafe { dlerror() };
+        print!("{prefix}");
+        unsafe { puts(err_msg) };
+    }
+}

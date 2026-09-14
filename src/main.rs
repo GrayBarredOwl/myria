@@ -13,18 +13,23 @@ use std::{
 };
 
 use {
-    ast::Scope, gen::{run_myria, run_myria_with_scope}, lex::Lexer, myria_settings::MyriaConfig, obj::Primitive,
+    ast::Scope,
+    gen::{run_myria, run_myria_with_scope},
+    lex::Lexer,
+    myria_settings::MyriaConfig,
+    obj::Primitive,
     parse::Parser,
 };
 
 fn main() {
-    let config = MyriaConfig::from_args(env::args());
+    let mut config = MyriaConfig::from_args(env::args());
+    config.load_libs_to_rsc();
+
     let Some(program) = config.program_string() else {
-        repl(Scope::default());
+        repl();
         return;
     };
     dbg!("{}\n", &program);
-    config.load_libs_to_rsc();
 
     match run_myria(&program) {
         Ok(result) => println!("Result: {result}"),
@@ -32,7 +37,8 @@ fn main() {
     }
 }
 
-fn repl(mut scope: Scope) {
+fn repl() {
+    let mut scope = Scope::default();
     loop {
         print!("> ");
         io::stdout().flush().unwrap();

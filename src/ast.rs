@@ -1,6 +1,6 @@
 use crate::gen::Operator;
 use crate::gen::{BadFnArgCnt, MyriaErr, MyriaRes};
-use crate::obj::{Object, PrimType, Primitive};
+use crate::obj::{Object, PrimType, Primitive, RustFunc};
 use crate::vtable::{pick_binfunc, pick_unfunc};
 use std::collections::HashMap;
 
@@ -357,7 +357,7 @@ fn assign(left: Expression, right: Expression, scope: &mut Scope) -> MyriaRes {
 }
 
 fn function_call(vec: Vec<Expression>, scope: &mut Scope) -> MyriaRes {
-    use crate::obj::{Function, LangFunc, RustFunc};
+    use crate::obj::{Function, LangFunc};
 
     assert!(!vec.is_empty());
     let func = vec[0].clone().evaluate(scope)?;
@@ -416,7 +416,6 @@ fn function_call(vec: Vec<Expression>, scope: &mut Scope) -> MyriaRes {
     }
 }
 
-use crate::obj::RustFunc;
 pub fn function_call_rust(RustFunc { num_args, fn_ptr }: RustFunc, args: Vec<Object>) -> MyriaRes {
     match num_args {
         Some(arg_count) if arg_count as usize != args.len() => panic!(

@@ -19,17 +19,17 @@ let ClassName = func(x, y) {
 #     self
 # }
 
+var m = empty()
+let m.openRead = ...
+let m.openWrite = ...
+let m.openAppend = ...
 
-class File {
-    let self.fd = null
-
-    let self.open = func(f, path) {
-        self.fd = rsc("open", [path])
-    }
-    let self.close = func(f) {
-        rsc("close", [f.fd])
-        null
-    }
-    let self.read = func(f, bytes) {
-    }
+let m.File = class(path, openmode) {
+    let self.fd = rsc("std.open_file", path, openmode)
 }
+
+let m.close = func(f) {
+    rsc("std.close_file", f.fd)
+}
+
+m

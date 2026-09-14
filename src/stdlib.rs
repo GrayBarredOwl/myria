@@ -1,6 +1,6 @@
 use crate::{
     gen::{MyriaErr, MyriaRes},
-    obj::{Object, PrimType, Primitive, RustFunc, List},
+    obj::{List, Object, PrimType, Primitive, RustFunc},
 };
 
 pub static FUNCS: &[(&str, RustFunc)] = &[
@@ -29,14 +29,12 @@ pub fn init_dyn_funcs() {
 pub fn dynamic_functions() -> &'static HashMap<String, RustFunc> {
     unsafe {
         DY_FUNCS.get_or_init(|| {
-            HashMap::new()
+            panic!("dynamic functions uninitializied");
         })
     }
 }
 unsafe fn get_dyn_fns_mut() -> &'static mut HashMap<String, RustFunc> {
-    unsafe {
-        DY_FUNCS.get_mut().unwrap()
-    }
+    unsafe { DY_FUNCS.get_mut().unwrap() }
 }
 
 pub fn register_function(name: String, func: RustFunc) {
@@ -88,14 +86,6 @@ mod io {
 
         let string = std::fs::read_to_string(fp).map_err(|e| MyriaErr::FileError(e.to_string()))?;
         Ok(Object::make_str(&string))
-    }
-
-    pub fn read_file(args: Vec<Object>) -> MyriaRes {
-        todo!()
-    }
-    pub fn write_file(args: Vec<Object>) -> MyriaRes {
-        // include append
-        todo!()
     }
 }
 
@@ -179,28 +169,33 @@ mod system {
     pub fn rust_call(args: Vec<Object>) -> MyriaRes {
         use crate::ast::function_call_rust;
 
-        let name = &args[0];
+        let name = args.get(0)
+            .ok_or(MyriaErr::InvalidOperation("rsc must have at least 1 argument".into()))?;
         if !name.primitive.is_string() {
             return Err(MyriaErr::InvalidOperation(
                 "rsc must be called with a string as the first argument".into(),
             ));
         }
         let name = match &name.primitive {
-            Primitive::List(List { ltype: Some(PrimType::Char), ref elems}) => elems,
+            Primitive::List(List {
+                ltype: Some(PrimType::Char),
+                ref elems,
+            }) => elems,
             _ => unreachable!(),
-        }.iter().map(|c| match c.primitive {
+        }
+        .iter()
+        .map(|c| match c.primitive {
             Primitive::Char(c) => c,
             _ => unreachable!(),
-        }).collect::<String>();
-        
+        })
+        .collect::<String>();
+
         let rf = match dynamic_functions().get(&name) {
             Some(rf) => *rf,
             None => return Err(MyriaErr::VariableDNE(name)),
         };
 
-        let fn_args = args.into_iter()
-            .skip(1)
-            .collect();
+        let fn_args = args.into_iter().skip(1).collect();
 
         function_call_rust(rf, fn_args)
     }
