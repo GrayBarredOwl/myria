@@ -1,0 +1,19 @@
+let should_be_true = import("test.mylang")
+print(num)
+
+*/
+let ClassName = func(x, y) {
+    var self = empty()
+    var self.x = x
+    let self.y = y
+
+    self
+} */
+
+let ClassName = class(self, x, y) {
+    let self.x = x;
+    var self.y = y;
+
+    let self.method = func(self, something) { /* ... */ }
+    self
+}

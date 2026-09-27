@@ -1,0 +1,11 @@
+[package]
+name = "myrialib"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "myrialib"
+crate-type = ["dylib"]
+
+[dependencies]
+myria = { version = "0.1.0", path = ".." }

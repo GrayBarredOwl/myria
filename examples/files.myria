@@ -1,0 +1,13 @@
+let File = import("myrialib/file")
+print(File)
+
+let f = File.File("README.md", File.READ)
+print("HI", f.fd)
+print(File.read(f, 20))
+print("Tell: ", File.tell(f))
+
+let f2 = File.File("test.txt", File.WRITE)
+File.write(f2, "Hello")
+
+File.close(f)
+File.close(f2)

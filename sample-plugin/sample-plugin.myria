@@ -1,0 +1,5 @@
+var m = empty()
+let m.first = func(a, b) {
+    rsc("sample-plugin.first", a, b)
+}
+m

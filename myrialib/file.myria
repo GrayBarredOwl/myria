@@ -1,0 +1,33 @@
+var m = empty()
+
+let m.READ = 1
+let m.WRITE = 2
+let m.APPEND = 4
+
+let m.SEEK_START = 1
+let m.SEEK_CURRENT = 2
+let m.SEEK_END = 4
+
+let m.File = class(path, mode) {
+    let self.fd = rsc("std.fs.open", path, mode)
+}
+
+let m.close = func(f) {
+    rsc("std.fs.close", f.fd)
+}
+
+let m.read = func(f, count) {
+    rsc("std.fs.read", f.fd, count)
+}
+
+let m.write = func(f, str) {
+    rsc("std.fs.write", f.fd, str)
+}
+let m.seek = func(f, offset_base, offset) {
+    rsc("std.fs.seek", f.fd, offset_base, offset)
+}
+let m.tell = func(f) {
+    rsc("std.fs.tell", f.fd)
+}
+
+m

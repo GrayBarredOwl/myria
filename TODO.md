@@ -8,7 +8,7 @@ Order of operations / Better parsing
 Having the left of a binary expression be compound ( [ 1 ] != [ 2 ], inline function calls )
 ~~List indexing~~
 ~~Nested commas (like function calls in function calls, or function calls in list literals)~~
-Rust and/or C API
+~~Rust and/or C API~~
 Better import
 ~~Type casting~~
 
@@ -27,7 +27,9 @@ Variadic function syntax
 ~~Rust / C API~~
 Transition standard library into a prelude and plugin
 For each loop
-File IO
+File IO in standard library
+better import
+update readme to the final state of the project
 
 
 Can now add functions to rsc. This allows for 'private' functions, that programmers are discouraged from using directly, except when wrapped in myria functions. Just need to allow rust libraries to call register

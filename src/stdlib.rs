@@ -22,7 +22,6 @@ pub static FUNCS: &[(&str, RustFunc)] = &[
     ("replace", RustFunc::new(Some(3), general::replace)),
 ];
 
-
 use std::{collections::HashMap, sync::OnceLock};
 static mut DY_FUNCS: OnceLock<HashMap<String, RustFunc>> = OnceLock::new();
 pub fn init_dyn_funcs() {
@@ -173,8 +172,9 @@ mod system {
     pub fn rust_call(args: Vec<Object>) -> MyriaRes {
         use crate::ast::function_call_rust;
 
-        let name = args.get(0)
-            .ok_or(MyriaErr::InvalidOperation("rsc must have at least 1 argument".into()))?;
+        let name = args.get(0).ok_or(MyriaErr::InvalidOperation(
+            "rsc must have at least 1 argument".into(),
+        ))?;
         if !name.primitive.is_string() {
             return Err(MyriaErr::InvalidOperation(
                 "rsc must be called with a string as the first argument".into(),
@@ -204,7 +204,8 @@ mod system {
         function_call_rust(rf, fn_args)
     }
     pub fn list_dy_funcs(_args: Vec<Object>) -> MyriaRes {
-        let func_names = dynamic_functions().keys()
+        let func_names = dynamic_functions()
+            .keys()
             .map(|s| Object::make_str(&s))
             .collect::<Vec<_>>();
         Ok(Object::make_list(func_names))

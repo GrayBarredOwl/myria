@@ -1,15 +1,24 @@
 use std::{env, path::PathBuf};
 
-use crate::{myria_settings::lib_load::Library};
-use myria::obj::RustFunc;
+use crate::myria_settings::lib_load::Library;
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct MyriaConfig {
     file: Option<PathBuf>,
     dylibs: Vec<LibInfo>,
     open_dylibs: Vec<Library>,
     // future flags
 }
+impl Default for MyriaConfig {
+    fn default() -> Self {
+        MyriaConfig {
+            file: None,
+            dylibs: vec![String::from("myrialib/target/debug/libmyrialib.dylib")],
+            open_dylibs: vec![],
+        }
+    }
+}
+
 impl MyriaConfig {
     pub fn from_args(args: env::Args) -> Self {
         let mut args = args;
@@ -31,34 +40,29 @@ impl MyriaConfig {
     }
     pub fn load_libs_to_rsc(&mut self) {
         use myria::stdlib::{init_dyn_funcs, register_function};
+        use myria::plugin::{LoadFn, NameFn};
 
         init_dyn_funcs();
         for lib_path in &self.dylibs {
-            let lib = Library::new(lib_path.as_str(), lib_load::RTLD_NOW)
-                .expect("Could not load library");
+            let Some(lib) = Library::new(lib_path.as_str(), lib_load::RTLD_NOW) else {
+                eprintln!("Library '{lib_path}' could not be opened");
+                continue;
+            };
 
             // load function pointer to grab exported functions
-            let loader = match lib.get_sym("load") {
-                Some(ptr) => ptr,
-                None => {
-                    eprintln!("Library '{lib_path}' does not contain 'load' function");
-                    continue;
-                }
+            let Some(loader) = lib.get_sym("load") else {
+                eprintln!("Library '{lib_path}' does not contain 'load' function");
+                continue;
             };
-            let loader: fn() -> Vec<(String, RustFunc)> =
+            let loader: LoadFn =
                 unsafe { std::mem::transmute(loader.as_ptr()) };
-            
-            let plugin_name = match lib.get_sym("name") {
-                Some(ptr) => ptr,
-                None => {
-                    eprintln!("Library '{lib_path}' does not contain 'name' function");
-                    continue;
-                }
-            };
-            let plugin_name: fn() -> String =
-                unsafe { std::mem::transmute(plugin_name.as_ptr()) }; 
-            let plugin_name = plugin_name();
 
+            let Some(plugin_name) = lib.get_sym("name") else {
+                eprintln!("Library '{lib_path}' does not contain 'name' function");
+                continue;
+            };
+            let plugin_name: NameFn = unsafe { std::mem::transmute(plugin_name.as_ptr()) };
+            let plugin_name = plugin_name();
 
             for (name, rf) in loader() {
                 register_function(format!("{plugin_name}.{name}"), rf);
@@ -110,6 +114,7 @@ mod lib_load {
     }
 
     #[cfg(target_os = "macos")]
+    #[allow(unused)]
     pub const RTLD_LAZY: c_int = 1;
     #[cfg(target_os = "macos")]
     pub const RTLD_NOW: c_int = 2;
@@ -128,7 +133,9 @@ mod lib_load {
                 print_dl_err("dlopen err: ");
                 None
             } else {
-                Some(Library { handle: unsafe { NonNull::new_unchecked(handle) } })
+                Some(Library {
+                    handle: unsafe { NonNull::new_unchecked(handle) },
+                })
             }
         }
         pub fn get_sym(&self, name: &str) -> Option<NonNull<c_void>> {

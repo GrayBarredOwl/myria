@@ -1,14 +1,12 @@
-let M = class() {
-    let self.Vec2 = class(x, y) {
-        var self.x = x
-        var self.y = y
-    }
-    let self.Vec3 = class(x, y, z) {
-        var self.x = x
-        var self.y = y
-        var self.z = z
-    }
-    
+var m = empty()
+let m.Vec2 = class(x, y) {
+    var self.x = x
+    var self.y = y
+}
+let m.Vec3 = class(x, y, z) {
+    var self.x = x
+    var self.y = y
+    var self.z = z
 }
 
-M()
+m

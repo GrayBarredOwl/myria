@@ -7,9 +7,3 @@ let factorial = func(n) {
 }
 
 factorial(3)
-
-
-# let min = func(x, y, *) {
-#     var min_val = x;
-#     
-# }
