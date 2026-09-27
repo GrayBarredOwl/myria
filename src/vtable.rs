@@ -239,7 +239,7 @@ pub mod float_vtable {
                     P::Bool(val) => x $op val as i32 as f64,
                     P::Int(val) => x $op val as f64,
                     P::Float(val) => x $op val,
-                    _ => return Err(MyriaErr::InvalidOperation(("Invalid operation".into()))),
+                    _ => return Err(MyriaErr::InvalidOperation("Invalid operation".into())),
                 };
                 Ok(Object::make_float(result))
             }

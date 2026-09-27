@@ -29,7 +29,6 @@ mod files {
     const MODE_READ: i64 = 1;
     const MODE_WRITE: i64 = 2;
     const MODE_APP: i64 = 4;
-    
 
     const OFFSET_START: i64 = 1;
     const OFFSET_CURRENT: i64 = 2;
@@ -40,7 +39,7 @@ mod files {
             unreachable!();
         };
         let path = path.to_string();
-        
+
         let mode = match &mode.primitive {
             Primitive::Int(val) => *val,
             _ => {
@@ -68,16 +67,16 @@ mod files {
             _ => {
                 return Err(MyriaErr::InvalidOperation(format!(
                     "std.fs.read called without an int for length: {}",
-                    args[1].to_string()
+                    args[1]
                 )));
             }
         };
 
         let mut vec = vec![0; size];
-        
+
         file.read(&mut vec)
             .map_err(|err| MyriaErr::FileError(err.to_string()))?;
- 
+
         Ok(Object::make_list(
             vec.into_iter()
                 .map(|b| Object::make_char(b as char))
@@ -91,7 +90,7 @@ mod files {
             _ => {
                 return Err(MyriaErr::InvalidOperation(format!(
                     "std.fs.read called without an int for length: {}",
-                    args[1].to_string()
+                    args[1]
                 )));
             }
         };
@@ -108,28 +107,28 @@ mod files {
             })
             .collect::<String>();
 
-        file.write(&to_write.as_bytes())
+        file.write(to_write.as_bytes())
             .map_err(|err| MyriaErr::FileError(err.to_string()))?;
-        
+
         Ok(Object::make_null())
     }
     pub fn seek(args: Vec<Object>) -> MyriaRes {
         let mut file = ManuallyDrop::new(fd_obj_to_file(&args[0])?);
         let offset_mode = match &args[1].primitive {
-            Primitive::Int(val) => *val as i64,
+            Primitive::Int(val) => *val,
             _ => {
                 return Err(MyriaErr::InvalidOperation(format!(
                     "std.fs.seek called without an int for offset_mode: {}",
-                    args[1].to_string()
+                    args[1]
                 )));
             }
         };
         let offset = match &args[2].primitive {
-            Primitive::Int(val) => *val as i64,
+            Primitive::Int(val) => *val,
             _ => {
                 return Err(MyriaErr::InvalidOperation(format!(
                     "std.fs.seek called without an int for offset: {}",
-                    args[1].to_string()
+                    args[1]
                 )));
             }
         };
@@ -137,16 +136,23 @@ mod files {
             OFFSET_START => SeekFrom::Start(offset as u64),
             OFFSET_CURRENT => SeekFrom::Current(offset),
             OFFSET_END => SeekFrom::End(offset),
-            _ => return Err(MyriaErr::InvalidOperation("std.fs.seek called with invalid seek mode".into())),
+            _ => {
+                return Err(MyriaErr::InvalidOperation(
+                    "std.fs.seek called with invalid seek mode".into(),
+                ));
+            }
         };
-        let position = file.seek(sk)
+        let position = file
+            .seek(sk)
             .map_err(|err| MyriaErr::FileError(err.to_string()))?;
         Ok(Object::make_int(position as i64))
     }
     pub fn tell(args: Vec<Object>) -> MyriaRes {
         let mut file = ManuallyDrop::new(fd_obj_to_file(&args[0])?);
-        Ok(Object::make_int(file.stream_position()
-            .map_err(|err| MyriaErr::FileError(err.to_string()))? as i64))
+        Ok(Object::make_int(
+            file.stream_position()
+                .map_err(|err| MyriaErr::FileError(err.to_string()))? as i64,
+        ))
     }
 
     fn fd_obj_to_file(obj: &Object) -> Result<File, MyriaErr> {
@@ -155,7 +161,7 @@ mod files {
             _ => {
                 return Err(MyriaErr::InvalidOperation(format!(
                     "std.fs.close called with ({})",
-                    obj.to_string()
+                    obj
                 )));
             }
         };

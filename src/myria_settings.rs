@@ -79,7 +79,6 @@ impl MyriaConfig {
                     rem_args
                         .next()
                         .expect("Library path should follow --lib flag")
-                        .into(),
                 );
             }
             file => {
