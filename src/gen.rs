@@ -3,6 +3,40 @@ use std::{collections::HashMap, sync::OnceLock};
 
 pub const EXTENSION: &str = ".myria";
 
+static mut DEBUG_PRINT_ACTIVE: OnceLock<bool> = OnceLock::new();
+pub fn set_debug_print(active: bool) {
+    unsafe { DEBUG_PRINT_ACTIVE.set(active).unwrap() }
+}
+pub fn debug_print_active() -> bool {
+    unsafe { DEBUG_PRINT_ACTIVE.get().copied().unwrap_or_default() }
+}
+
+#[macro_export]
+macro_rules! debug_print {
+    () => {
+        if $crate::gen::debug_print_active() {
+            dbg!()
+        }
+    };
+    ($val:expr $(,)?) => {
+        if $crate::gen::debug_print_active() {
+            dbg!($val)
+        } else {
+            $val
+        }
+    };
+    ($($val:expr),+ $(,)?) => {
+        if $crate::gen::debug_print_active() {
+            dbg!($($val),+)
+        } else {
+            ($($val),+)
+        }
+    };
+
+
+}
+
+
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Keyword {
     Let,
@@ -174,9 +208,9 @@ pub fn run_file_with(fp: &str, scope: &mut Scope) -> MyriaRes {
 pub fn run_myria_with_scope(program: &str, scope: &mut Scope) -> MyriaRes {
     use crate::{lex::Lexer, parse::Parser};
     let toks = Lexer::new(program).tokenize();
-    dbg!(&toks);
+    debug_print!(&toks);
     let expr = Parser::new(&toks).parse();
-    dbg!(&expr);
+    debug_print!(&expr);
     expr.evaluate(scope)
 }
 pub fn run_myria(program: &str) -> MyriaRes {

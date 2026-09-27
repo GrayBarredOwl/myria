@@ -1,5 +1,5 @@
-pub use crate::r#gen::MyriaRes;
 pub use crate::obj::{Object, RustFunc};
+pub use crate::r#gen::MyriaRes;
 
 pub type FuncInfo = (String, RustFunc);
 

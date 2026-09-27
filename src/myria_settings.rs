@@ -1,5 +1,7 @@
 use std::{env, path::PathBuf};
 
+use myria::gen;
+
 use crate::myria_settings::lib_load::Library;
 
 #[derive(Debug)]
@@ -7,6 +9,8 @@ pub struct MyriaConfig {
     file: Option<PathBuf>,
     dylibs: Vec<LibInfo>,
     open_dylibs: Vec<Library>,
+    version_flag: bool,
+    pub debug_print_flag: bool,
     // future flags
 }
 impl Default for MyriaConfig {
@@ -15,6 +19,8 @@ impl Default for MyriaConfig {
             file: None,
             dylibs: vec![String::from("myrialib/target/debug/libmyrialib.dylib")],
             open_dylibs: vec![],
+            version_flag: false,
+            debug_print_flag: false,
         }
     }
 }
@@ -30,6 +36,9 @@ impl MyriaConfig {
         }
         config
     }
+    pub fn docs_not_execute(&self) -> bool {
+        self.version_flag
+    }
     pub fn program_string(&self) -> Option<String> {
         self.file
             .as_ref()
@@ -38,9 +47,23 @@ impl MyriaConfig {
                 Err(err) => panic!("Couldn't read file({}): {err}", fp.display()),
             })
     }
+    pub fn display_requested_info(&self) {
+        println!("Myria version: {}", env!("CARGO_PKG_VERSION"));
+    }
+    pub fn execute_setup(&mut self) {
+        if self.docs_not_execute() {
+            self.display_requested_info();
+            std::process::exit(0);
+        }
+        if self.debug_print_flag {
+            gen::set_debug_print(true);
+        }
+
+        self.load_libs_to_rsc();
+    }
     pub fn load_libs_to_rsc(&mut self) {
-        use myria::stdlib::{init_dyn_funcs, register_function};
         use myria::plugin::{LoadFn, NameFn};
+        use myria::stdlib::{init_dyn_funcs, register_function};
 
         init_dyn_funcs();
         for lib_path in &self.dylibs {
@@ -54,8 +77,7 @@ impl MyriaConfig {
                 eprintln!("Library '{lib_path}' does not contain 'load' function");
                 continue;
             };
-            let loader: LoadFn =
-                unsafe { std::mem::transmute(loader.as_ptr()) };
+            let loader: LoadFn = unsafe { std::mem::transmute(loader.as_ptr()) };
 
             let Some(plugin_name) = lib.get_sym("name") else {
                 eprintln!("Library '{lib_path}' does not contain 'name' function");
@@ -73,19 +95,35 @@ impl MyriaConfig {
     }
 
     fn process_arg(&mut self, cur_arg: &str, rem_args: &mut std::env::Args) {
-        match cur_arg {
-            "--lib" => {
-                self.dylibs.push(
-                    rem_args
-                        .next()
-                        .expect("Library path should follow --lib flag")
-                );
+        if cur_arg.starts_with("-") && cur_arg.chars().nth(1) != Some('-') {
+            for c in cur_arg.chars().skip(1) {
+                match c {
+                    'v' => self.version_flag = true,
+                    'd' => self.debug_print_flag = true,
+                    _ => (),
+                }
             }
-            file => {
-                if self.file.is_none() {
-                    self.file = Some(file.into());
-                } else {
-                    panic!("Can not run multiple files at once: Only enter 1 file to execute");
+        } else {
+            match cur_arg {
+                "--lib" => {
+                    self.dylibs.push(
+                        rem_args
+                            .next()
+                            .expect("Library path should follow --lib flag"),
+                    );
+                }
+                "--debug" => {
+                    self.debug_print_flag = true;
+                }
+                "--version" => {
+                    self.version_flag = true;
+                }
+                file => {
+                    if self.file.is_none() {
+                        self.file = Some(file.into());
+                    } else {
+                        panic!("Can not run multiple files at once: Only enter 1 file to execute");
+                    }
                 }
             }
         }

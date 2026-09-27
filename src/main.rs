@@ -6,6 +6,7 @@ use std::{
 };
 
 use myria::{
+    debug_print,
     ast::Scope,
     gen::{self, run_myria, run_myria_with_scope},
     obj::Primitive,
@@ -15,13 +16,13 @@ use myria_settings::MyriaConfig;
 
 fn main() {
     let mut config = MyriaConfig::from_args(env::args());
-    config.load_libs_to_rsc();
-
+    config.execute_setup();
     let Some(program) = config.program_string() else {
         repl();
         return;
     };
-    dbg!("{}\n", &program);
+
+    debug_print!("{}\n", &program);
 
     match run_myria(&program) {
         Ok(result) => println!("Result: {result}"),
