@@ -1,6 +1,6 @@
-use crate::{   
-    util::{Operator, BadFnArgCnt, MyriaErr, MyriaRes},
+use crate::{
     obj::{Object, PrimType, Primitive, RustFunc},
+    util::{BadFnArgCnt, MyriaErr, MyriaRes, Operator},
     vtable::{pick_binfunc, pick_unfunc},
 };
 use std::collections::HashMap;

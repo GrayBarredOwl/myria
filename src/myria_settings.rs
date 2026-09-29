@@ -1,6 +1,6 @@
-use std::{env, path::PathBuf};
-use myria::util;
 use crate::myria_settings::lib_load::Library;
+use myria::util;
+use std::{env, path::PathBuf};
 
 #[derive(Debug)]
 pub struct MyriaConfig {

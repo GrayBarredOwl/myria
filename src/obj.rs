@@ -1,7 +1,7 @@
 use crate::{
     ast::{Expression, Scope},
-    vtable::{self, VTable},
     util::MyriaRes,
+    vtable::{self, VTable},
 };
 
 #[derive(Debug, Default, PartialEq, Clone)]

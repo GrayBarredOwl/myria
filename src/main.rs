@@ -6,10 +6,10 @@ use std::{
 };
 
 use myria::{
-    debug_print,
     ast::Scope,
-    util::{self, run_myria, run_myria_with_scope},
+    debug_print,
     obj::Primitive,
+    util::{self, run_myria, run_myria_with_scope},
 };
 
 use myria_settings::MyriaConfig;

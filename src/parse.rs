@@ -1,7 +1,10 @@
 use crate::{
     ast::{BinOpExpr, Expression, IfExpr, LoopExpr, TryExpr, UnOpExpr, VarData},
-    util::{Keyword, Operator::{self, RParen}},
     lex::{Token, TokenType},
+    util::{
+        Keyword,
+        Operator::{self, RParen},
+    },
 };
 
 #[derive(Clone, Copy, Debug)]

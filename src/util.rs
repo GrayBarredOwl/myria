@@ -36,7 +36,6 @@ macro_rules! debug_print {
 
 }
 
-
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Keyword {
     Let,

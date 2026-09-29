@@ -1,6 +1,6 @@
 use crate::{
-    util::{MyriaErr, MyriaRes},
     obj::{List, Object, PrimType, Primitive, RustFunc},
+    util::{MyriaErr, MyriaRes},
 };
 
 pub static FUNCS: &[(&str, RustFunc)] = &[

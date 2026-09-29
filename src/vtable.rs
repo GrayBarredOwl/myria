@@ -1,6 +1,6 @@
 // use crate::ast::{Expression, Scope};
-use crate::util::{MyriaErr, MyriaRes, Operator};
 use crate::obj::{Object, Primitive};
+use crate::util::{MyriaErr, MyriaRes, Operator};
 use core::fmt;
 
 pub type BinOpFn = fn(Primitive, Primitive) -> MyriaRes;

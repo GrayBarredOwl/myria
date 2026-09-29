@@ -1,9 +1,9 @@
-use std::sync::OnceLock;
 use crate::{
     ast::Expression,
-    util::{self, keywords, operators, Operator},
     obj::Object,
+    util::{self, keywords, operators, Operator},
 };
+use std::sync::OnceLock;
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum TokenType {
