@@ -14,19 +14,19 @@ pub fn debug_print_active() -> bool {
 #[macro_export]
 macro_rules! debug_print {
     () => {
-        if $crate::gen::debug_print_active() {
+        if $crate::util::debug_print_active() {
             dbg!()
         }
     };
     ($val:expr $(,)?) => {
-        if $crate::gen::debug_print_active() {
+        if $crate::util::debug_print_active() {
             dbg!($val)
         } else {
             $val
         }
     };
     ($($val:expr),+ $(,)?) => {
-        if $crate::gen::debug_print_active() {
+        if $crate::util::debug_print_active() {
             dbg!($($val),+)
         } else {
             ($($val),+)

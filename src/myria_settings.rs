@@ -1,7 +1,5 @@
 use std::{env, path::PathBuf};
-
-use myria::gen;
-
+use myria::util;
 use crate::myria_settings::lib_load::Library;
 
 #[derive(Debug)]
@@ -56,7 +54,7 @@ impl MyriaConfig {
             std::process::exit(0);
         }
         if self.debug_print_flag {
-            gen::set_debug_print(true);
+            util::set_debug_print(true);
         }
 
         self.load_libs_to_rsc();

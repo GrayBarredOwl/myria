@@ -1,7 +1,8 @@
-use crate::ast::{BinOpExpr, Expression, IfExpr, LoopExpr, TryExpr, UnOpExpr, VarData};
-use crate::gen::Operator::RParen;
-use crate::gen::{Keyword, Operator};
-use crate::lex::{Token, TokenType};
+use crate::{
+    ast::{BinOpExpr, Expression, IfExpr, LoopExpr, TryExpr, UnOpExpr, VarData},
+    util::{Keyword, Operator::{self, RParen}},
+    lex::{Token, TokenType},
+};
 
 #[derive(Clone, Copy, Debug)]
 pub struct Parser<'a> {

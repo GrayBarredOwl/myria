@@ -1,7 +1,8 @@
-use crate::gen::Operator;
-use crate::gen::{BadFnArgCnt, MyriaErr, MyriaRes};
-use crate::obj::{Object, PrimType, Primitive, RustFunc};
-use crate::vtable::{pick_binfunc, pick_unfunc};
+use crate::{   
+    util::{Operator, BadFnArgCnt, MyriaErr, MyriaRes},
+    obj::{Object, PrimType, Primitive, RustFunc},
+    vtable::{pick_binfunc, pick_unfunc},
+};
 use std::collections::HashMap;
 
 #[derive(Clone, Debug, PartialEq)]

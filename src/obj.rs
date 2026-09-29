@@ -1,6 +1,8 @@
-use crate::ast::{Expression, Scope};
-use crate::gen::MyriaRes;
-use crate::vtable::{self, VTable};
+use crate::{
+    ast::{Expression, Scope},
+    vtable::{self, VTable},
+    util::MyriaRes,
+};
 
 #[derive(Debug, Default, PartialEq, Clone)]
 pub enum Primitive {

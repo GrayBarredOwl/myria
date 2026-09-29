@@ -8,7 +8,7 @@ use std::{
 use myria::{
     debug_print,
     ast::Scope,
-    gen::{self, run_myria, run_myria_with_scope},
+    util::{self, run_myria, run_myria_with_scope},
     obj::Primitive,
 };
 
@@ -26,7 +26,7 @@ fn main() {
 
     match run_myria(&program) {
         Ok(result) => println!("Result: {result}"),
-        Err(err) => gen::print_error(err),
+        Err(err) => util::print_error(err),
     }
 }
 
@@ -62,7 +62,7 @@ fn repl() {
                     // println!("{result:?}");
                 }
             }
-            Err(err) => gen::print_error(err),
+            Err(err) => util::print_error(err),
         }
     }
 }

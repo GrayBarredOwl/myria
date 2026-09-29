@@ -1,8 +1,9 @@
 use std::sync::OnceLock;
-
-use crate::ast::Expression;
-use crate::gen::{self, keywords, operators, Operator};
-use crate::obj::Object;
+use crate::{
+    ast::Expression,
+    util::{self, keywords, operators, Operator},
+    obj::Object,
+};
 
 #[derive(PartialEq, Debug, Clone)]
 pub enum TokenType {
@@ -11,8 +12,8 @@ pub enum TokenType {
     Char(char),
     Str(String),
     Id(String),
-    Keyword(gen::Keyword),
-    Operator(gen::Operator),
+    Keyword(util::Keyword),
+    Operator(util::Operator),
 }
 
 impl TokenType {

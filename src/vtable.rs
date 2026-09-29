@@ -1,6 +1,5 @@
 // use crate::ast::{Expression, Scope};
-use crate::gen::Operator;
-use crate::gen::{MyriaErr, MyriaRes};
+use crate::util::{MyriaErr, MyriaRes, Operator};
 use crate::obj::{Object, Primitive};
 use core::fmt;
 

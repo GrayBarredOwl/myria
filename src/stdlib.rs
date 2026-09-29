@@ -1,5 +1,5 @@
 use crate::{
-    gen::{MyriaErr, MyriaRes},
+    util::{MyriaErr, MyriaRes},
     obj::{List, Object, PrimType, Primitive, RustFunc},
 };
 
@@ -94,7 +94,7 @@ mod io {
 
 mod system {
     use super::*;
-    use crate::gen;
+    use crate::util;
 
     pub fn exit(args: Vec<Object>) -> MyriaRes {
         let mut args = args;
@@ -131,11 +131,10 @@ mod system {
             })
             .collect::<String>();
 
-        gen::run_myria(&program)
+        util::run_myria(&program)
     }
 
     pub fn import(args: Vec<Object>) -> MyriaRes {
-        use crate::gen;
         use crate::obj::Primitive;
 
         let [fp] = &args[..] else {
@@ -164,9 +163,9 @@ mod system {
                 _ => unreachable!(),
             })
             .collect::<String>();
-        fp.push_str(crate::gen::EXTENSION);
+        fp.push_str(crate::util::EXTENSION);
 
-        gen::run_file(&fp)
+        util::run_file(&fp)
     }
 
     pub fn rust_call(args: Vec<Object>) -> MyriaRes {
