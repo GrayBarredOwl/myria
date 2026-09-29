@@ -9,7 +9,7 @@ pub struct MyriaConfig {
     open_dylibs: Vec<Library>,
     version_flag: bool,
     pub debug_print_flag: bool,
-    // future flags
+    pub print_result_flag: bool, // future flags
 }
 impl Default for MyriaConfig {
     fn default() -> Self {
@@ -19,6 +19,7 @@ impl Default for MyriaConfig {
             open_dylibs: vec![],
             version_flag: false,
             debug_print_flag: false,
+            print_result_flag: false,
         }
     }
 }
@@ -36,6 +37,9 @@ impl MyriaConfig {
     }
     pub fn docs_not_execute(&self) -> bool {
         self.version_flag
+    }
+    pub fn should_print_result(&self) -> bool {
+        self.print_result_flag
     }
     pub fn program_string(&self) -> Option<String> {
         self.file
@@ -98,6 +102,7 @@ impl MyriaConfig {
                 match c {
                     'v' => self.version_flag = true,
                     'd' => self.debug_print_flag = true,
+                    'p' => self.print_result_flag = true,
                     _ => (),
                 }
             }
@@ -115,6 +120,9 @@ impl MyriaConfig {
                 }
                 "--version" => {
                     self.version_flag = true;
+                }
+                "--print-result" => {
+                    self.print_result_flag = true;
                 }
                 file => {
                     if self.file.is_none() {
