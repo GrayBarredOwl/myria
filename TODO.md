@@ -14,8 +14,8 @@ Better import
 
 ~~block comments~~
 For each loop
-File IO
-Standard library
+~~File IO~~
+~~Standard library~~
 Return, break, continue keywords
 ~~Exceptions & error handling~~
 Variadic function syntax
@@ -25,11 +25,11 @@ Variadic function syntax
 
 
 ~~Rust / C API~~
-Transition standard library into a prelude and plugin
+~~Transition standard library into a prelude and plugin~~
 For each loop
-File IO in standard library
+~~File IO in standard library~~
 better import
-update readme to the final state of the project
+~~update readme to the final state of the project~~
 
 
 Can now add functions to rsc. This allows for 'private' functions, that programmers are discouraged from using directly, except when wrapped in myria functions. Just need to allow rust libraries to call register
