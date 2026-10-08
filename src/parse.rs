@@ -63,7 +63,13 @@ impl<'a> Parser<'a> {
             cur_expr.push(self.parse_try());
         } else if matches!(next_token, TT::Keyword(KW::Loop)) {
             cur_expr.push(self.parse_loop());
-        } else if matches!(next_token, TT::Keyword(KW::Throw)) {
+        } else if matches!(
+            next_token,
+            TT::Keyword(KW::Throw)
+                | TT::Keyword(KW::Break)
+                | TT::Keyword(KW::Continue)
+                | TT::Keyword(KW::Return)
+        ) {
             cur_expr.push(self.parse_throw());
         } else if matches!(next_token, TT::Operator(Operator::LCurly)) {
             cur_expr.push(self.parse_block());
@@ -238,10 +244,33 @@ impl<'a> Parser<'a> {
         type TT = TokenType;
         // type Expr = Expression;
 
-        assert!(matches!(self.peek().info, TT::Keyword(KW::Throw)));
-        let _throw = self.consume().clone();
-        let value = self.parse_expr().unwrap_or_default();
-        Expression::Throw(Box::new(value))
+        assert!(matches!(
+            self.peek().info,
+            TT::Keyword(KW::Throw)
+                | TT::Keyword(KW::Break)
+                | TT::Keyword(KW::Continue)
+                | TT::Keyword(KW::Return)
+        ));
+        // let _throw = self.consume().clone();
+        match self.consume().clone().info {
+            TT::Keyword(KW::Throw) => {
+                let value = self.parse_expr().unwrap_or_default();
+                Expression::Throw(Box::new(value))
+            }
+            TT::Keyword(KW::Break) => {
+                let value = self.parse_expr().unwrap_or_default();
+                Expression::Break(Box::new(value))
+            }
+            TT::Keyword(KW::Continue) => {
+                Expression::Continue
+            }
+            TT::Keyword(KW::Return) => {
+                let value = self.parse_expr().unwrap_or_default();
+                Expression::Return(Box::new(value))
+            }
+            _ => unreachable!(),
+        }
+
     }
     fn parse_unop(&mut self) -> Expression {
         type TT = TokenType;
@@ -293,6 +322,26 @@ impl<'a> Parser<'a> {
             return Expr::UnOp(UnOpExpr {
                 op: Op::Not,
                 operand: Box::new(less_than),
+            });
+        } else if op == Operator::Gr {
+            let less_than = Expr::BinOp(BinOpExpr {
+                op: Op::Lt,
+                left: Box::new(left.clone()),
+                right: Box::new(right.clone()),
+            });
+            let equal_to = Expr::BinOp(BinOpExpr {
+                op: Op::Equals,
+                left: Box::new(left),
+                right: Box::new(right),
+            });
+            let lt_eq = Expr::BinOp(BinOpExpr {
+                op: Op::Or,
+                left: Box::new(less_than),
+                right: Box::new(equal_to),
+            });
+            return Expr::UnOp(UnOpExpr {
+                op: Op::Not,
+                operand: Box::new(lt_eq),
             });
         } else if op == Op::LtEq {
             let less_than = Expr::BinOp(BinOpExpr {

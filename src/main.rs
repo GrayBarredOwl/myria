@@ -18,7 +18,7 @@ fn main() {
     let mut config = MyriaConfig::from_args(env::args());
     config.execute_setup();
     let Some(program) = config.program_string() else {
-        repl(config);
+        repl();
         return;
     };
 
@@ -34,7 +34,7 @@ fn main() {
     }
 }
 
-fn repl(config: MyriaConfig) {
+fn repl() {
     let mut scope = Scope::default();
     loop {
         print!("> ");
@@ -61,7 +61,9 @@ fn repl(config: MyriaConfig) {
         };
         match run_myria_with_scope(resp, &mut scope) {
             Ok(result) => {
-                if result.primitive != Primitive::Null && config.should_print_result() {
+                if result.primitive != Primitive::Null
+                /* && config.should_print_result()  */
+                {
                     println!("{result}");
                     // println!("{result:?}");
                 }

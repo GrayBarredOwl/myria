@@ -8,7 +8,7 @@ let digit = func ( a ) {
 } 
 print("digit(6789) = ", digit(6789))
 
-let y = if false {
+var y = if false {
         let x = 30
         x * 0.5
     } elif true {

@@ -45,6 +45,9 @@ pub enum Expression {
     Loop(LoopExpr),
     Try(TryExpr),
     Throw(Box<Expression>),
+    Break(Box<Expression>),
+    Continue,
+    Return(Box<Expression>),
     UnOp(UnOpExpr),
     BinOp(BinOpExpr),
     BlockExpr(Vec<Expression>),
@@ -255,13 +258,19 @@ impl Expression {
                 }
             }
             Self::Loop(loop_obj) => {
-                let mut result = Object::default();
+                let mut loop_res = Object::default();
                 loop {
                     let should_loop = loop_obj.condition.clone().evaluate(scope)?;
                     if should_loop.primitive.is_truthy() {
-                        result = loop_obj.to_resolve.clone().evaluate(scope)?;
+                        let result = loop_obj.to_resolve.clone().evaluate(scope);
+                        loop_res = match result {
+                            Ok(obj) => obj,
+                            Err(MyriaErr::Break(obj)) => return Ok(obj),
+                            Err(MyriaErr::Continue) => continue,
+                            other_err => return other_err,
+                        };
                     } else {
-                        break Ok(result);
+                        break Ok(loop_res);
                     }
                 }
             }
@@ -272,6 +281,15 @@ impl Expression {
             Self::Throw(throw_obj) => {
                 let value = throw_obj.evaluate(scope)?;
                 Err(MyriaErr::Thrown(value))
+            }
+            Self::Break(break_obj) => {
+                let value = break_obj.evaluate(scope)?;
+                Err(MyriaErr::Break(value))
+            }
+            Self::Continue => Err(MyriaErr::Continue),
+            Self::Return(ret_obj) => {
+                let value = ret_obj.evaluate(scope)?;
+                Err(MyriaErr::Return(value))
             }
             Self::UnOp(unop) => {
                 let operand = unop.operand.evaluate(scope)?;
@@ -401,7 +419,10 @@ fn function_call(vec: Vec<Expression>, scope: &mut Scope) -> MyriaRes {
             for (name, val) in params.into_iter().zip(vec.into_iter().skip(1)) {
                 fn_scope.push_var(name, val.evaluate(scope)?);
             }
-            body.evaluate(&mut fn_scope)
+            match body.evaluate(&mut fn_scope) {
+                Err(MyriaErr::Return(obj)) => Ok(obj),
+                other => other,
+            }
         }
         P::Function(Function::RustFn(rf)) => {
             let args = vec

@@ -50,6 +50,10 @@ pub enum Keyword {
     Try,
     Catch,
     Throw,
+
+    Break,
+    Continue,
+    Return,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -117,6 +121,9 @@ pub fn keywords() -> &'static HashMap<&'static str, Keyword> {
         kw.insert("catch", Keyword::Catch);
         kw.insert("throw", Keyword::Throw);
 
+        kw.insert("break", Keyword::Break);
+        kw.insert("continue", Keyword::Continue);
+        kw.insert("return", Keyword::Return);
         kw
     })
 }
@@ -177,6 +184,10 @@ pub enum MyriaErr {
     InvalidType(PrimType),
     FileError(String),
     InvalidOperation(String),
+
+    Break(Object),
+    Continue,
+    Return(Object),
 }
 impl std::fmt::Display for MyriaErr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
