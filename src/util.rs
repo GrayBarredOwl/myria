@@ -170,21 +170,23 @@ pub fn operators() -> &'static HashMap<&'static str, Operator> {
 }
 
 #[derive(Debug, PartialEq, Clone)]
-#[allow(unused)] // Data is used in debug printing, but Rust thinks the data is not used
 pub enum MyriaErr {
+    // Variable access errors
     VariableDNE(String),
     VariableNotInit(String),
     VariableAlreadyExists(String),
     VariableNotMut(String),
-    Thrown(Object),
-
+    
+    // General errors
     ZeroDivision,
     BadFunctionArgumentCount(BadFnArgCnt),
     OutOfBounds(i64),
     InvalidType(PrimType),
     FileError(String),
     InvalidOperation(String),
-
+    
+    // User generated errors / using errors as control constructs
+    Thrown(Object),
     Break(Object),
     Continue,
     Return(Object),
